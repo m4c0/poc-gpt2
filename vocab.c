@@ -56,23 +56,12 @@ static unsigned next_token(const char * b) {
   return bs - b;
 }
 
-int main() {
-  init_b2mb();
-  assert(b2mb[0] == 256);
-  assert(b2mb[33] == 33);
-  assert(b2mb[173] == 323);
-
-  wchar_t * mb = encode_bytes(text, strlen(text));
-  assert(mb[0] == 'T');
-  assert(mb[3] == 288);
-
-  const char * txt = text;
-  unsigned len;
-  while ((len = next_token(txt))) {
-    wchar_t * token = encode_bytes(txt, len);
-    txt += len;
-  }
-
+typedef struct pair {
+  const char * l;
+  const char * r;
+} pair_t;
+static pair_t bpes[50000] = {0};
+void init_bpe() {
   FILE * f = fopen("vocab.bpe", "rb");
   assert(f);
 
@@ -88,6 +77,7 @@ int main() {
   assert(bpe[0] == '#');
   assert(bpe = strchr(bpe, '\n') + 1);
 
+  pair_t * ptr = bpes;
   char * buf = bpe;
   char * nxt;
   while ((nxt = strchr(buf, '\n'))) {
@@ -97,7 +87,30 @@ int main() {
     assert(spc);
     *spc = 0;
 
-    //fprintf(stderr, "[%s][%s] ", buf, spc + 1);
+    ptr->l = buf;
+    ptr->r = spc + 1;
     buf = nxt + 1;
   }
+}
+
+int main() {
+  init_b2mb();
+  assert(b2mb[0] == 256);
+  assert(b2mb[33] == 33);
+  assert(b2mb[173] == 323);
+
+  init_bpe();
+
+  wchar_t * mb = encode_bytes(text, strlen(text));
+  assert(mb[0] == 'T');
+  assert(mb[3] == 288);
+
+  const char * txt = text;
+  unsigned len;
+  while ((len = next_token(txt))) {
+    wchar_t * token = encode_bytes(txt, len);
+     if (!token[1]) {} //add(token);
+    txt += len;
+  }
+
 }
