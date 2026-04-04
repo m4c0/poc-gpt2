@@ -42,11 +42,17 @@ static unsigned next_token(const char * b) {
         return 2;
     }
   }
+
   const char * bs = *b == ' ' ? b + 1 : b;
-  if (isalpha(*bs)) while (isalpha(*bs)) bs++;
-  else if (isdigit(*bs)) while (isdigit(*bs)) bs++;
-  else if (!isspace(*bs)) while (!isalpha(*bs) && !isdigit(*bs) && !isspace(*bs)) bs++;
-  else while (isspace(*bs)) bs++;
+  if (isalpha(*bs))
+    while (*bs && isalpha(*bs)) bs++;
+  else if (isdigit(*bs))
+    while (*bs && isdigit(*bs)) bs++;
+  else if (!isspace(*bs))
+    while (*bs && !isalpha(*bs) && !isdigit(*bs) && !isspace(*bs)) bs++;
+  else
+    while (*bs && isspace(*bs)) bs++;
+
   return bs - b;
 }
 
@@ -59,6 +65,13 @@ int main() {
   wchar_t * mb = encode_bytes(text, strlen(text));
   assert(mb[0] == 'T');
   assert(mb[3] == 288);
+
+  const char * txt = text;
+  unsigned len;
+  while ((len = next_token(txt))) {
+    wchar_t * token = encode_bytes(txt, len);
+    txt += len;
+  }
 
   FILE * f = fopen("vocab.bpe", "rb");
   assert(f);
@@ -84,7 +97,7 @@ int main() {
     assert(spc);
     *spc = 0;
 
-    fprintf(stderr, "[%s][%s] ", buf, spc + 1);
+    //fprintf(stderr, "[%s][%s] ", buf, spc + 1);
     buf = nxt + 1;
   }
 }
