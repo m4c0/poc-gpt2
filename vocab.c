@@ -12,7 +12,8 @@ static const char * text = "The quick brown fox jumps over the lazy fox.";
 static wchar_t b2mb[256] = {0};
 static void init_b2mb() {
   for (unsigned c = '!'; c <= '~'; c++) b2mb[c] = c;
-  for (unsigned c = 161; c <= 255; c++) b2mb[c] = c;
+  for (unsigned c = 161; c <= 172; c++) b2mb[c] = c;
+  for (unsigned c = 174; c <= 255; c++) b2mb[c] = c;
 
   wchar_t mc = 256;
   for (unsigned c = 0; c <= 255; c++) if (!b2mb[c]) b2mb[c] = mc++;
@@ -25,6 +26,9 @@ wchar_t * encode_bytes(const char * b, unsigned bytes) {
 
 int main() {
   init_b2mb();
+  assert(b2mb[0] == 256);
+  assert(b2mb[33] == 33);
+  assert(b2mb[173] == 323);
 
   wchar_t * mb = encode_bytes(text, strlen(text));
   printf("S: %s\n", text);
