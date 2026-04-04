@@ -18,10 +18,36 @@ static void init_b2mb() {
   wchar_t mc = 256;
   for (unsigned c = 0; c <= 255; c++) if (!b2mb[c]) b2mb[c] = mc++;
 }
-wchar_t * encode_bytes(const char * b, unsigned bytes) {
+static wchar_t * encode_bytes(const char * b, unsigned bytes) {
   wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
   for (int i = 0; i < bytes; i++) mb[i] = b2mb[(unsigned)b[i]];
   return mb;
+}
+
+static unsigned next_token(const char * b) {
+  if (!*b) return 0;
+  if (*b == '\'') {
+    switch (b[1]) {
+      case 'l':
+        if (b[2] == 'l') return 3;
+        break;
+      case 'r':
+      case 'v':
+        if (b[2] == 'e') return 3;
+        break;
+      case 's':
+      case 't':
+      case 'm':
+      case 'd':
+        return 2;
+    }
+  }
+  const char * bs = *b == ' ' ? b + 1 : b;
+  if (isalpha(*bs)) while (isalpha(*bs)) bs++;
+  else if (isdigit(*bs)) while (isdigit(*bs)) bs++;
+  else if (!isspace(*bs)) while (!isalpha(*bs) && !isdigit(*bs) && !isspace(*bs)) bs++;
+  else while (isspace(*bs)) bs++;
+  return bs - b;
 }
 
 int main() {
@@ -31,8 +57,8 @@ int main() {
   assert(b2mb[173] == 323);
 
   wchar_t * mb = encode_bytes(text, strlen(text));
-  printf("S: %s\n", text);
-  wprintf(L"L: %ls\n", mb);
+  assert(mb[0] == 'T');
+  assert(mb[3] == 288);
 
   FILE * f = fopen("vocab.bpe", "rb");
   assert(f);
