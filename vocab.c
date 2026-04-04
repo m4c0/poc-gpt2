@@ -3,11 +3,33 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <wchar.h>
 
 // The objective is to create valid GPT-2 tokens for this message
 static const char * text = "The quick brown fox jumps over the lazy fox.";
 
+/// Transforms bytes containing UTF-8 into the multibyte chars used in vocab.bpe
+static wchar_t b2mb[256] = {0};
+static void init_b2mb() {
+  for (unsigned c = '!'; c <= '~'; c++) b2mb[c] = c;
+  for (unsigned c = 161; c <= 255; c++) b2mb[c] = c;
+
+  wchar_t mc = 256;
+  for (unsigned c = 0; c <= 255; c++) if (!b2mb[c]) b2mb[c] = mc++;
+}
+wchar_t * encode_bytes(const char * b, unsigned bytes) {
+  wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
+  for (int i = 0; i < bytes; i++) mb[i] = b2mb[(unsigned)b[i]];
+  return mb;
+}
+
 int main() {
+  init_b2mb();
+
+  wchar_t * mb = encode_bytes(text, strlen(text));
+  printf("S: %s\n", text);
+  wprintf(L"L: %ls\n", mb);
+
   FILE * f = fopen("vocab.bpe", "rb");
   assert(f);
 
