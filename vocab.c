@@ -18,6 +18,11 @@ static const char * text = "The quick brown fox jumps over the lazy fox.";
 /// Oddly enough, multibyte UTF-8 will be mapped as multiple wchars.
 static wchar_t enc_map[256] = {0};
 
+static wchar_t * enc_encode_bytes(const char * b, unsigned bytes) {
+  wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
+  for (int i = 0; i < bytes; i++) mb[i] = enc_map[(unsigned)b[i]];
+  return mb;
+}
 static void enc_init() {
   for (unsigned c = '!'; c <= '~'; c++) enc_map[c] = c;
   for (unsigned c = 161; c <= 172; c++) enc_map[c] = c;
@@ -29,11 +34,10 @@ static void enc_init() {
   assert(enc_map[0] == 256);
   assert(enc_map[33] == 33);
   assert(enc_map[173] == 323);
-}
-static wchar_t * enc_encode_bytes(const char * b, unsigned bytes) {
-  wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
-  for (int i = 0; i < bytes; i++) mb[i] = enc_map[(unsigned)b[i]];
-  return mb;
+
+  wchar_t * mb = enc_encode_bytes("The quick", 9);
+  assert(mb[0] == 'T');
+  assert(mb[3] == 288);
 }
 
 //}}}
@@ -140,10 +144,6 @@ static unsigned next_token(const char * b) {
 int main() {
   enc_init();
   bpe_init();
-
-  wchar_t * mb = enc_encode_bytes(text, strlen(text));
-  assert(mb[0] == 'T');
-  assert(mb[3] == 288);
 
   const char * txt = text;
   unsigned len;
