@@ -233,7 +233,7 @@ static void enc_init() {
   char * ptr = buf;
 
   char delim='{';
-  while (*ptr != '}') {
+  while (*ptr) {
     assert(*ptr++ == delim);
 
     assert(*ptr++ == '"');
@@ -277,18 +277,20 @@ static void enc_init() {
     assert(id != -1);
     assert(id < 50257);
 
-    assert(*ptr++ == ',');
+    assert(*ptr == ',' || *ptr == '}');
+    ptr++;
     delim = ' ';
 
     enc_map[id] = (enc_pair_t) {
       .str = key,
       .sz = ksz,
     };
-
-    printf("%ls %d\n", enc_map[id].str, id);
   }
 
   free(buf);
+
+  assert(0 == wcscmp(enc_map[236].str, L"\x130"));
+  assert(0 == wcscmp(enc_map[50256].str, L"<|endoftext|>"));
 }
 
 //}}}
