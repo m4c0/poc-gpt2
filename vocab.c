@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
@@ -59,11 +60,30 @@ static unsigned next_token(const char * b) {
 }
 
 typedef struct pair {
-  const char * l;
-  const char * r;
+  const wchar_t * l;
+  const wchar_t * r;
 } pair_t;
 static pair_t bpes[50000] = {0};
-void init_bpe() {
+static wchar_t * utf8_to_wchar(const char * u8) {
+  int len = strlen(u8);
+  // Final string will never be greater than original. Since it can be smaller,
+  // we have to clear everything.
+  wchar_t * res = calloc(len + 1, sizeof(wchar_t));
+
+  for (wchar_t * mb = res; *u8; u8++, mb++) {
+    if ((u8[0] & 0x80) == 0) {
+      *mb = *u8;
+      continue;
+    }
+    assert((u8[0] & 0xE0) == 0xC0 && (u8[1] & 0xC0) == 0x80 && "found unsupported char in vocab.bpe");
+    *mb = ((u8[0] & 0x1F) << 6) | (u8[1] & 0x3F);
+    u8++;
+  }
+  return res;
+}
+static void init_bpe() {
+  // vocab.bpe "encodes" a list of "byte pairs", one pair for line, each pair
+  // split by space. Each side of the pair is encoded as UTF-8
   FILE * f = fopen("vocab.bpe", "rb");
   assert(f);
 
@@ -89,8 +109,7 @@ void init_bpe() {
     assert(spc);
     *spc = 0;
 
-    ptr->l = buf;
-    ptr->r = spc + 1;
+    *ptr++ = (pair_t) { utf8_to_wchar(buf), utf8_to_wchar(spc + 1) };
     buf = nxt + 1;
   }
 }
