@@ -9,7 +9,7 @@
 #include <wchar.h>
 
 // The objective is to create valid GPT-2 tokens for this message
-static const char * text = "The quick brown fox jumps over the lazy fox.";
+static const char * text = "The quick brown fox jumps over the lazy dog.";
 
 //{{{ [enc] Maps UTF-8 bytes to vocab's wchars
 //=============================================
@@ -45,11 +45,11 @@ static void enc_init() {
 //{{{ [bpe] Byte-pair encoding map
 //=================================
 
-typedef struct bpe_map_entry {
+typedef struct bpe_str {
   const wchar_t * str;
   int sz;
-} bpe_pair_t;
-static bpe_pair_t bpe_map[50000] = {0};
+} bpe_str_t;
+static bpe_str_t bpe_map[50000] = {0};
 static wchar_t * bpe_mbstowcs(const char * u8, wchar_t * mb) {
   // This is equivalent to mbstowcs but we don't need to rely on
   // changing/restoring the multibyte locale
@@ -91,7 +91,7 @@ static void bpe_init() {
   assert(bpe[0] == '#');
   assert(bpe = strchr(bpe, '\n') + 1);
 
-  bpe_pair_t * ptr = bpe_map;
+  bpe_str_t * ptr = bpe_map;
   char * buf = bpe;
   char * nxt;
   while ((nxt = strchr(buf, '\n'))) {
@@ -172,7 +172,49 @@ int main() {
   while ((len = tkn_next_pptoken_len(txt))) {
     wchar_t * token = enc_encode_bytes(txt, len);
     debug_print(token, len);
-    //if (!token[1]) {} //add(token);
+
+    bpe_str_t * list = malloc(sizeof(bpe_str_t) * len);
+    int lsz = len;
+    for (int i = 0; i < lsz; i++) list[i] = (bpe_str_t){ token + i, 1 };
+
+    while (lsz > 1) {
+      bpe_str_t best = {0};
+      for (int n = 0; n < 50000; n++) {
+        bpe_str_t ns = bpe_map[n];
+        for (int i = 0; i < lsz - 1; i++) {
+          const wchar_t * t = list[i].str;
+          int tsz = list[i].sz + list[i + 1].sz;
+          if (tsz != ns.sz) continue;
+          if (0 != wcsncmp(t, ns.str, ns.sz)) continue;
+          best = ns;
+          n = 50000;
+          break;
+        }
+      }
+      // Can't compact more
+      if (best.sz == 0) break;
+
+      int wr = 0;
+      for (int i = 0; i < lsz - 1; i++) {
+        const wchar_t * t = list[i].str;
+        int tsz = list[i].sz + list[i + 1].sz;
+        if (tsz == best.sz && 0 == wcsncmp(t, best.str, best.sz)) {
+          list[wr++] = (bpe_str_t) { t, best.sz };
+          list[i + 1].sz = 0;
+          i++;
+        } else {
+          list[wr++] = list[i];
+        }
+      }
+      if (list[lsz - 1].sz) list[wr++] = list[lsz - 1];
+      lsz = wr;
+    }
+
+    for (int i = 0; i < lsz; i++) {
+      printf("  ");
+      debug_print(list[i].str, list[i].sz);
+    }
+
     txt += len;
   }
 
