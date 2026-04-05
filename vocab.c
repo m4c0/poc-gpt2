@@ -116,6 +116,50 @@ static void bpe_init() {
   assert(bpe_map[49999].sz == 6);
 }
 
+typedef struct bpe_list {
+  bpe_str_t * list;
+  int sz;
+} bpe_list_t;
+static bpe_list_t bpe_split_tokens(const wchar_t * token, int len) {
+  bpe_str_t * list = malloc(sizeof(bpe_str_t) * len);
+  int lsz = len;
+  for (int i = 0; i < lsz; i++) list[i] = (bpe_str_t){ token + i, 1 };
+
+  while (lsz > 1) {
+    bpe_str_t best = {0};
+    for (int n = 0; n < 50000; n++) {
+      bpe_str_t ns = bpe_map[n];
+      for (int i = 0; i < lsz - 1; i++) {
+        const wchar_t * t = list[i].str;
+        int tsz = list[i].sz + list[i + 1].sz;
+        if (tsz != ns.sz) continue;
+        if (0 != wcsncmp(t, ns.str, ns.sz)) continue;
+        best = ns;
+        n = 50000;
+        break;
+      }
+    }
+    // Can't compact more
+    if (best.sz == 0) break;
+
+    int wr = 0;
+    for (int i = 0; i < lsz - 1; i++) {
+      const wchar_t * t = list[i].str;
+      int tsz = list[i].sz + list[i + 1].sz;
+      if (tsz == best.sz && 0 == wcsncmp(t, best.str, best.sz)) {
+        list[wr++] = (bpe_str_t) { t, best.sz };
+        list[i + 1].sz = 0;
+        i++;
+      } else {
+        list[wr++] = list[i];
+      }
+    }
+    if (list[lsz - 1].sz) list[wr++] = list[lsz - 1];
+    lsz = wr;
+  }
+
+  return (bpe_list_t) { list, lsz };
+}
 //}}}
 
 //{{{ [tkn] Tokenisation
@@ -173,46 +217,11 @@ int main() {
     wchar_t * token = enc_encode_bytes(txt, len);
     debug_print(token, len);
 
-    bpe_str_t * list = malloc(sizeof(bpe_str_t) * len);
-    int lsz = len;
-    for (int i = 0; i < lsz; i++) list[i] = (bpe_str_t){ token + i, 1 };
+    bpe_list_t list = bpe_split_tokens(token, len);
 
-    while (lsz > 1) {
-      bpe_str_t best = {0};
-      for (int n = 0; n < 50000; n++) {
-        bpe_str_t ns = bpe_map[n];
-        for (int i = 0; i < lsz - 1; i++) {
-          const wchar_t * t = list[i].str;
-          int tsz = list[i].sz + list[i + 1].sz;
-          if (tsz != ns.sz) continue;
-          if (0 != wcsncmp(t, ns.str, ns.sz)) continue;
-          best = ns;
-          n = 50000;
-          break;
-        }
-      }
-      // Can't compact more
-      if (best.sz == 0) break;
-
-      int wr = 0;
-      for (int i = 0; i < lsz - 1; i++) {
-        const wchar_t * t = list[i].str;
-        int tsz = list[i].sz + list[i + 1].sz;
-        if (tsz == best.sz && 0 == wcsncmp(t, best.str, best.sz)) {
-          list[wr++] = (bpe_str_t) { t, best.sz };
-          list[i + 1].sz = 0;
-          i++;
-        } else {
-          list[wr++] = list[i];
-        }
-      }
-      if (list[lsz - 1].sz) list[wr++] = list[lsz - 1];
-      lsz = wr;
-    }
-
-    for (int i = 0; i < lsz; i++) {
+    for (int i = 0; i < list.sz; i++) {
       printf("  ");
-      debug_print(list[i].str, list[i].sz);
+      debug_print(list.list[i].str, list.list[i].sz);
     }
 
     txt += len;
