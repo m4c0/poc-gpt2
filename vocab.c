@@ -11,31 +11,39 @@
 // The objective is to create valid GPT-2 tokens for this message
 static const char * text = "The quick brown fox jumps over the lazy dog.";
 
-//{{{ [enc] Maps UTF-8 bytes to vocab's wchars
+// Because printing wchar on certain platforms (like Windows) just plain suck
+void debug_print(const wchar_t * str, unsigned len) {
+  for (int i = 0; i < len; i++) 
+    if (str[i] < 0x80) printf("%lc", str[i]);
+    else printf("U+%04x", str[i]);
+  puts("");
+}
+
+//{{{ [byt] Maps UTF-8 bytes to vocab's wchars
 //=============================================
 
 /// Maps bytes of UTF-8 into multibyte chars used in vocab.bpe.
 /// Oddly enough, multibyte UTF-8 will be mapped as multiple wchars.
-static wchar_t enc_map[256] = {0};
+static wchar_t byt_map[256] = {0};
 
-static wchar_t * enc_encode_bytes(const char * b, unsigned bytes) {
+static wchar_t * byt_encode_bytes(const char * b, unsigned bytes) {
   wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
-  for (int i = 0; i < bytes; i++) mb[i] = enc_map[(unsigned)b[i]];
+  for (int i = 0; i < bytes; i++) mb[i] = byt_map[(unsigned)b[i]];
   return mb;
 }
-static void enc_init() {
-  for (unsigned c = '!'; c <= '~'; c++) enc_map[c] = c;
-  for (unsigned c = 161; c <= 172; c++) enc_map[c] = c;
-  for (unsigned c = 174; c <= 255; c++) enc_map[c] = c;
+static void byt_init() {
+  for (unsigned c = '!'; c <= '~'; c++) byt_map[c] = c;
+  for (unsigned c = 161; c <= 172; c++) byt_map[c] = c;
+  for (unsigned c = 174; c <= 255; c++) byt_map[c] = c;
 
   wchar_t mc = 256;
-  for (unsigned c = 0; c <= 255; c++) if (!enc_map[c]) enc_map[c] = mc++;
+  for (unsigned c = 0; c <= 255; c++) if (!byt_map[c]) byt_map[c] = mc++;
 
-  assert(enc_map[0] == 256);
-  assert(enc_map[33] == 33);
-  assert(enc_map[173] == 323);
+  assert(byt_map[0] == 256);
+  assert(byt_map[33] == 33);
+  assert(byt_map[173] == 323);
 
-  wchar_t * mb = enc_encode_bytes("The quick", 9);
+  wchar_t * mb = byt_encode_bytes("The quick", 9);
   assert(mb[0] == 'T');
   assert(mb[3] == 288);
 }
@@ -120,10 +128,10 @@ typedef struct bpe_list {
   bpe_str_t * list;
   int sz;
 } bpe_list_t;
-static bpe_list_t bpe_split_tokens(const wchar_t * token, int len) {
+static bpe_list_t bpe_split(const wchar_t * txt, int len) {
   bpe_str_t * list = malloc(sizeof(bpe_str_t) * len);
   int lsz = len;
-  for (int i = 0; i < lsz; i++) list[i] = (bpe_str_t){ token + i, 1 };
+  for (int i = 0; i < lsz; i++) list[i] = (bpe_str_t){ txt + i, 1 };
 
   while (lsz > 1) {
     bpe_str_t best = {0};
@@ -199,25 +207,19 @@ static unsigned tkn_next_pptoken_len(const char * b) {
 
 //}}}
 
-// Because printing wchar on certain platforms (like Windows) just plain suck
-void debug_print(const wchar_t * str, unsigned len) {
-  for (int i = 0; i < len; i++) 
-    if (str[i] < 0x80) printf("%lc", str[i]);
-    else printf("U+%04x", str[i]);
-  puts("");
 }
 
 int main() {
-  enc_init();
+  byt_init();
   bpe_init();
 
   const char * txt = text;
   unsigned len;
   while ((len = tkn_next_pptoken_len(txt))) {
-    wchar_t * token = enc_encode_bytes(txt, len);
+    wchar_t * token = byt_encode_bytes(txt, len);
     debug_print(token, len);
 
-    bpe_list_t list = bpe_split_tokens(token, len);
+    bpe_list_t list = bpe_split(token, len);
 
     for (int i = 0; i < list.sz; i++) {
       printf("  ");
