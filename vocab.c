@@ -148,7 +148,9 @@ static unsigned tkn_next_token_len(const char * b) {
 
 // Because printing wchar on certain platforms (like Windows) just plain suck
 void debug_print(wchar_t * str, unsigned len) {
-  for (int i = 0; i < len; i++) printf("%lc", str[i] > 0x7F ? '?' : str[i]);
+  for (int i = 0; i < len; i++) 
+    if (str[i] < 0x80) printf("%lc", str[i]);
+    else printf("U+%04x", str[i]);
   puts("");
 }
 
