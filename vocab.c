@@ -121,7 +121,7 @@ static void bpe_init() {
 //{{{ [tkn] Tokenisation
 //=======================
 
-static unsigned tkn_next_token_len(const char * b) {
+static unsigned tkn_next_pptoken_len(const char * b) {
   if (!*b) return 0;
   if (*b == '\'') {
     switch (b[1]) {
@@ -169,7 +169,7 @@ int main() {
 
   const char * txt = text;
   unsigned len;
-  while ((len = tkn_next_token_len(txt))) {
+  while ((len = tkn_next_pptoken_len(txt))) {
     wchar_t * token = enc_encode_bytes(txt, len);
     debug_print(token, len);
     //if (!token[1]) {} //add(token);
