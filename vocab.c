@@ -19,6 +19,27 @@ void debug_print(const wchar_t * str, unsigned len) {
   puts("");
 }
 
+//{{{ [utl] Utilities
+//====================
+
+static char * utl_slurp(const char * file) {
+  FILE * f = fopen(file, "rb");
+  assert(f);
+
+  assert(0 == fseek(f, 0, SEEK_END));
+  long sz = ftell(f);
+  assert(sz);
+  assert(0 == fseek(f, 0, SEEK_SET));
+
+  char * data = malloc(sz + 1);
+  assert(1 == fread(data, sz, 1, f));
+
+  fclose(f);
+  return data;
+}
+
+//}}}
+
 //{{{ [byt] Maps UTF-8 bytes to vocab's wchars
 //=============================================
 
@@ -84,16 +105,7 @@ static void bpe_init() {
   // vocab.bpe "encodes" a list of "byte pairs", one pair for line, each pair
   // split by space. Each side of the pair is encoded as UTF-8 in the file, but
   // we should use wchar because it aligns with the tokenisation stuff.
-  FILE * f = fopen("vocab.bpe", "rb");
-  assert(f);
-
-  assert(0 == fseek(f, 0, SEEK_END));
-  long sz = ftell(f);
-  assert(sz);
-  assert(0 == fseek(f, 0, SEEK_SET));
-
-  char * bpe = malloc(sz + 1);
-  assert(1 == fread(bpe, sz, 1, f));
+  char * bpe = utl_slurp("vocab.bpe");
 
   // Skip comment in the first line
   assert(bpe[0] == '#');
@@ -207,11 +219,84 @@ static unsigned tkn_next_pptoken_len(const char * b) {
 
 //}}}
 
+//{{{ [tkn] Tokenisation
+//=======================
+
+typedef struct enc_pair {
+  wchar_t * str;
+  unsigned sz;
+} enc_pair_t;
+static enc_pair_t enc_map[50257];
+static void enc_init() {
+  char * buf = utl_slurp("encoder.json");
+
+  char * ptr = buf;
+
+  char delim='{';
+  while (*ptr != '}') {
+    assert(*ptr++ == delim);
+
+    assert(*ptr++ == '"');
+
+    int ksz = 0;
+    for (char * p = ptr; *p && *p != '"'; p++, ksz++) {
+      if (*p == '\\') p++;
+    }
+    wchar_t * key = calloc(ksz, sizeof(wchar_t));
+
+    wchar_t * k = key;
+    while (*ptr && *ptr != '"') {
+      if (*ptr == '\\') {
+        ptr++;
+        if (*ptr == 'u') {
+          ptr++;
+          for (int i = 0; i < 4; i++, ptr++) {
+            *k = *k << 4;
+            if (*ptr >= '0' && *ptr <= '9') *k += *ptr - '0';
+            else if (*ptr >= 'a' && *ptr <= 'f') *k += *ptr - 'a' + 10;
+            else if (*ptr >= 'A' && *ptr <= 'F') *k += *ptr - 'A' + 10;
+            else assert(0);
+          }
+          k++;
+          continue;
+        }
+      }
+      *k++ = *ptr++;
+    }
+    *k = 0;
+
+    assert(*ptr++ == '"');
+    assert(*ptr++ == ':');
+    assert(*ptr++ == ' ');
+
+    int id = -1;
+    while (*ptr >= '0' && *ptr <= '9') {
+      if (id == -1) id = 0;
+      id = id * 10 + (*ptr++ - '0');
+    }
+    assert(id != -1);
+    assert(id < 50257);
+
+    assert(*ptr++ == ',');
+    delim = ' ';
+
+    enc_map[id] = (enc_pair_t) {
+      .str = key,
+      .sz = ksz,
+    };
+
+    printf("%ls %d\n", enc_map[id].str, id);
+  }
+
+  free(buf);
 }
+
+//}}}
 
 int main() {
   byt_init();
   bpe_init();
+  enc_init();
 
   const char * txt = text;
   unsigned len;
