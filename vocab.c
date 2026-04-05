@@ -109,7 +109,10 @@ static void bpe_init() {
 
 //}}}
 
-static unsigned next_token(const char * b) {
+//{{{ [tkn] Tokenisation
+//=======================
+
+static unsigned tkn_next_token_len(const char * b) {
   if (!*b) return 0;
   if (*b == '\'') {
     switch (b[1]) {
@@ -141,15 +144,24 @@ static unsigned next_token(const char * b) {
   return bs - b;
 }
 
+//}}}
+
+// Because printing wchar on certain platforms (like Windows) just plain suck
+void debug_print(wchar_t * str, unsigned len) {
+  for (int i = 0; i < len; i++) printf("%lc", str[i] > 0x7F ? '?' : str[i]);
+  puts("");
+}
+
 int main() {
   enc_init();
   bpe_init();
 
   const char * txt = text;
   unsigned len;
-  while ((len = next_token(txt))) {
+  while ((len = tkn_next_token_len(txt))) {
     wchar_t * token = enc_encode_bytes(txt, len);
-     if (!token[1]) {} //add(token);
+    debug_print(token, len);
+    //if (!token[1]) {} //add(token);
     txt += len;
   }
 
