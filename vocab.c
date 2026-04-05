@@ -1,5 +1,7 @@
 #pragma leco tool
+#define _CRT_SECURE_NO_WARNINGS
 #include <assert.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
