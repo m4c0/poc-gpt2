@@ -45,22 +45,15 @@ static void enc_init() {
 //{{{ [bpe] Byte-pair encoding map
 //=================================
 
-typedef struct bpe_pair {
-  const wchar_t * l;
-  int lsz;
-  const wchar_t * r;
-  int rsz;
+typedef struct bpe_map_entry {
+  const wchar_t * str;
+  int sz;
 } bpe_pair_t;
 static bpe_pair_t bpe_map[50000] = {0};
-static wchar_t * bpe_utf8_to_wchar(const char * u8) {
-  int len = strlen(u8);
-  // Final string will never be greater than original. Since it can be smaller,
-  // we have to clear everything.
-  wchar_t * res = calloc(len + 1, sizeof(wchar_t));
-
+static wchar_t * bpe_mbstowcs(const char * u8, wchar_t * mb) {
   // This is equivalent to mbstowcs but we don't need to rely on
   // changing/restoring the multibyte locale
-  for (wchar_t * mb = res; *u8; u8++, mb++) {
+  for (; *u8; u8++, mb++) {
     if ((u8[0] & 0x80) == 0) {
       *mb = *u8;
       continue;
@@ -69,6 +62,14 @@ static wchar_t * bpe_utf8_to_wchar(const char * u8) {
     *mb = ((u8[0] & 0x1F) << 6) | (u8[1] & 0x3F);
     u8++;
   }
+  return mb;
+}
+static wchar_t * bpe_utf8_to_wchar(const char * a, const char * b) {
+  // Final string will never be greater than original. Since it can be smaller,
+  // we have to clear everything.
+  wchar_t * res = calloc(strlen(a) + strlen(b) + 1, sizeof(wchar_t));
+  // We concatenate both because the algo here only uses vocab.bpe for ranking.
+  bpe_mbstowcs(b, bpe_mbstowcs(a, res));
   return res;
 }
 static void bpe_init() {
@@ -100,28 +101,19 @@ static void bpe_init() {
     assert(spc);
     *spc = 0;
 
-    ptr->l = bpe_utf8_to_wchar(buf);
-    ptr->r = bpe_utf8_to_wchar(spc + 1);
-
-    ptr->lsz = wcslen(ptr->l);
-    ptr->rsz = wcslen(ptr->r);
+    ptr->str = bpe_utf8_to_wchar(buf, spc + 1);
+    ptr->sz = wcslen(ptr->str);
 
     ptr++;
     buf = nxt + 1;
   }
 
-  assert(bpe_map[6].l[0] == 288);
-  assert(bpe_map[6].l[1] == 't');
-  assert(bpe_map[6].lsz == 2);
-  assert(bpe_map[6].r[0] == 'h');
-  assert(bpe_map[6].r[1] == 'e');
-  assert(bpe_map[6].rsz == 2);
-  assert(0 == wcscmp(bpe_map[49999].r, L"azed"));
-  assert(bpe_map[49999].rsz == 4);
-  assert(0 == wcscmp(bpe_map[6969].l, L"%"));
-  assert(bpe_map[6969].lsz == 1);
-  assert(0 == wcscmp(bpe_map[6969].r, L"."));
-  assert(bpe_map[6969].rsz == 1);
+  assert(0 == wcscmp(bpe_map[6].str, L"\x120the"));
+  assert(bpe_map[6].sz == 4);
+  assert(0 == wcscmp(bpe_map[6969].str, L"%."));
+  assert(bpe_map[6969].sz == 2);
+  assert(0 == wcscmp(bpe_map[49999].str, L"\x120gazed"));
+  assert(bpe_map[49999].sz == 6);
 }
 
 //}}}
