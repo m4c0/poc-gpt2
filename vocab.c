@@ -47,7 +47,9 @@ static void enc_init() {
 
 typedef struct bpe_pair {
   const wchar_t * l;
+  int lsz;
   const wchar_t * r;
+  int rsz;
 } bpe_pair_t;
 static bpe_pair_t bpe_map[50000] = {0};
 static wchar_t * bpe_utf8_to_wchar(const char * u8) {
@@ -98,13 +100,28 @@ static void bpe_init() {
     assert(spc);
     *spc = 0;
 
-    *ptr++ = (bpe_pair_t) { bpe_utf8_to_wchar(buf), bpe_utf8_to_wchar(spc + 1) };
+    ptr->l = bpe_utf8_to_wchar(buf);
+    ptr->r = bpe_utf8_to_wchar(spc + 1);
+
+    ptr->lsz = wcslen(ptr->l);
+    ptr->rsz = wcslen(ptr->r);
+
+    ptr++;
     buf = nxt + 1;
   }
 
-  assert(bpe_map[0].l[0] == 288 && bpe_map[0].l[1] == 0);
-  assert(bpe_map[0].r[0] == 't' && bpe_map[0].r[1] == 0);
+  assert(bpe_map[6].l[0] == 288);
+  assert(bpe_map[6].l[1] == 't');
+  assert(bpe_map[6].lsz == 2);
+  assert(bpe_map[6].r[0] == 'h');
+  assert(bpe_map[6].r[1] == 'e');
+  assert(bpe_map[6].rsz == 2);
   assert(0 == wcscmp(bpe_map[49999].r, L"azed"));
+  assert(bpe_map[49999].rsz == 4);
+  assert(0 == wcscmp(bpe_map[6969].l, L"%"));
+  assert(bpe_map[6969].lsz == 1);
+  assert(0 == wcscmp(bpe_map[6969].r, L"."));
+  assert(bpe_map[6969].rsz == 1);
 }
 
 //}}}
@@ -147,7 +164,7 @@ static unsigned tkn_next_token_len(const char * b) {
 //}}}
 
 // Because printing wchar on certain platforms (like Windows) just plain suck
-void debug_print(wchar_t * str, unsigned len) {
+void debug_print(const wchar_t * str, unsigned len) {
   for (int i = 0; i < len; i++) 
     if (str[i] < 0x80) printf("%lc", str[i]);
     else printf("U+%04x", str[i]);
