@@ -20,6 +20,10 @@ static void init_b2mb() {
 
   wchar_t mc = 256;
   for (unsigned c = 0; c <= 255; c++) if (!b2mb[c]) b2mb[c] = mc++;
+
+  assert(b2mb[0] == 256);
+  assert(b2mb[33] == 33);
+  assert(b2mb[173] == 323);
 }
 static wchar_t * encode_bytes(const char * b, unsigned bytes) {
   wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
@@ -83,7 +87,8 @@ static wchar_t * utf8_to_wchar(const char * u8) {
 }
 static void init_bpe() {
   // vocab.bpe "encodes" a list of "byte pairs", one pair for line, each pair
-  // split by space. Each side of the pair is encoded as UTF-8
+  // split by space. Each side of the pair is encoded as UTF-8 in the file, but
+  // we should use wchar because it aligns with the tokenisation stuff.
   FILE * f = fopen("vocab.bpe", "rb");
   assert(f);
 
@@ -112,14 +117,14 @@ static void init_bpe() {
     *ptr++ = (pair_t) { utf8_to_wchar(buf), utf8_to_wchar(spc + 1) };
     buf = nxt + 1;
   }
+
+  assert(bpes[0].l[0] == 288 && bpes[0].l[1] == 0);
+  assert(bpes[0].r[0] == 't' && bpes[0].r[1] == 0);
+  assert(0 == wcscmp(bpes[49999].r, L"azed"));
 }
 
 int main() {
   init_b2mb();
-  assert(b2mb[0] == 256);
-  assert(b2mb[33] == 33);
-  assert(b2mb[173] == 323);
-
   init_bpe();
 
   wchar_t * mb = encode_bytes(text, strlen(text));
