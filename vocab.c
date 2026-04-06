@@ -293,6 +293,31 @@ static void enc_init() {
   assert(0 == wcscmp(enc_map[50256].str, L"<|endoftext|>"));
 }
 
+static unsigned * tkn_tokenise(const char * txt) {
+  unsigned * tokens = malloc(sizeof(unsigned) * 100000);
+  unsigned tidx = 0;
+
+  unsigned len;
+  while ((len = tkn_next_pptoken_len(txt))) {
+    wchar_t * token = byt_encode_bytes(txt, len);
+    bpe_list_t list = bpe_split(token, len);
+
+    for (int i = 0; i < list.sz; i++) {
+      int tkn = -1;
+      for (tkn = 0; tkn < 50256; tkn++) {
+        if (wcscmp(list.list[i].str, enc_map[tkn].str)) continue;
+        tokens[tidx++] = tkn;
+        break;
+      }
+      assert(tkn >= 0);
+    }
+
+    txt += len;
+  }
+
+  return tokens;
+}
+
 //}}}
 
 int main() {
@@ -300,17 +325,23 @@ int main() {
   bpe_init();
   enc_init();
 
+  unsigned * tokens = malloc(sizeof(unsigned) * 100000);
+  unsigned tidx = 0;
+
   const char * txt = text;
   unsigned len;
   while ((len = tkn_next_pptoken_len(txt))) {
     wchar_t * token = byt_encode_bytes(txt, len);
-    debug_print(token, len);
-
     bpe_list_t list = bpe_split(token, len);
 
     for (int i = 0; i < list.sz; i++) {
-      printf("  ");
-      debug_print(list.list[i].str, list.list[i].sz);
+      int tkn = -1;
+      for (tkn = 0; tkn < 50256; tkn++) {
+        if (wcscmp(list.list[i].str, enc_map[tkn].str)) continue;
+        tokens[tidx++] = tkn;
+        break;
+      }
+      assert(tkn >= 0);
     }
 
     txt += len;
