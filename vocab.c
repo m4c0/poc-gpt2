@@ -30,6 +30,7 @@ static char * utl_slurp(const char * file) {
 
   char * data = malloc(sz + 1);
   assert(1 == fread(data, sz, 1, f));
+  data[sz] = 0;
 
   fclose(f);
   return data;
