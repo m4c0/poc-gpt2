@@ -344,7 +344,7 @@ int main() {
   char * c = buf;
   for (int i = 0; i < ts.sz; i++) {
     utl_wstr_t tk = enc_map[ts.ids[i]];
-    int n = wcstombs(c, tk.str, len);
+    int n = wcstombs(c, utl_wstr_printable(tk), len);
     c += n;
     len -= n;
   }
