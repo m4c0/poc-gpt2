@@ -212,6 +212,7 @@ static void enc_init() {
         ptr++;
         if (*ptr == 'u') {
           ptr++;
+          ksz -= 4;
           for (int i = 0; i < 4; i++, ptr++) {
             *k = *k << 4;
             if (*ptr >= '0' && *ptr <= '9') *k += *ptr - '0';
