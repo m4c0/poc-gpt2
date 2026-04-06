@@ -62,9 +62,25 @@ static tensor_t find(FILE * f, const char * key) {
   exit(1);
 }
 
+void list(FILE * f) {
+  assert(0 == fseek(f, 8, SEEK_SET));
+  fscanf(f, "{\"__metadata__\":{\"format\":\"pt\"}");
+  assert(!ferror(f) && !feof(f));
+
+  char c;
+  while ((c = fgetc(f)) != '}') {
+    assert(1 == fscanf(f,
+          "\"%[^\"]\":{\"dtype\":\"F32\",\"shape\":[%*[^]]],\"data_offsets\":[%*[^]]]}",
+          key_buf));
+    puts(key_buf);
+  }
+}
+
 int main() {
   FILE * f = fopen("model.safetensors", "rb");
   assert(f);
+
+  list(f);
 
   tensor_t t = find(f, "h.1.attn.c_proj.weight");
   
