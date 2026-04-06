@@ -243,9 +243,10 @@ static void enc_init() {
   assert(0 == wcscmp(enc_map[50256].str, L"<|endoftext|>"));
 }
 
-static int enc_find_id(const wchar_t * str) {
+static int enc_find_id(utl_wstr_t str) {
   for (int tkn = 0; tkn < 50256; tkn++) {
-    if (wcscmp(str, enc_map[tkn].str)) continue;
+    if (str.sz != enc_map[tkn].sz) continue;
+    if (wcsncmp(str.str, enc_map[tkn].str, str.sz)) continue;
     return tkn;
   }
   assert(0);
@@ -303,7 +304,7 @@ static tkn_ids_t tkn_encode(const char * txt) {
     bpe_list_t list = bpe_split(token, len);
 
     for (int i = 0; i < list.sz; i++) {
-      ids[idx++] = enc_find_id(list.list[i].str);
+      ids[idx++] = enc_find_id(list.list[i]);
     }
 
     txt += len;
