@@ -325,4 +325,14 @@ int main() {
   for (int i = 0; i < ts.sz; i++) printf("%d ", ts.ids[i]);
   printf("\n");
 
+  int len = 1024;
+  char * buf = calloc(len, 1);
+  char * c = buf;
+  for (int i = 0; i < ts.sz; i++) {
+    utl_wstr_t tk = enc_map[ts.ids[i]];
+    int n = wcstombs(c, tk.str, len);
+    c += n;
+    len -= n;
+  }
+  printf("%s\n", buf);
 }
