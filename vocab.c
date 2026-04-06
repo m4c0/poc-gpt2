@@ -333,6 +333,15 @@ static tkn_ids_t tkn_encode(const char * txt) {
 
   return (tkn_ids_t) { ids, idx };
 }
+static int tkn_decode(tkn_ids_t ts, char * buf, int bsz) {
+  int total = 0;
+  for (int i = 0; i < ts.sz && i < bsz; i++) {
+    utl_wstr_t tk = enc_map[ts.ids[i]];
+    total += byt_decode_bytes(tk, buf + total, bsz - total);
+  }
+  if (total < bsz) buf[total] = 0;
+  return total;
+}
 
 //}}}
 
@@ -349,12 +358,6 @@ int main() {
 
   int len = 1024;
   char * buf = calloc(len, 1);
-  char * c = buf;
-  for (int i = 0; i < ts.sz; i++) {
-    utl_wstr_t tk = enc_map[ts.ids[i]];
-    int n = byt_decode_bytes(tk, c, len);
-    c += n;
-    len -= n;
-  }
+  tkn_decode(ts, buf, len);
   printf("%s\n", buf);
 }
