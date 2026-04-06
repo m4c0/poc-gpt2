@@ -5,19 +5,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-int main() {
-  FILE * f = fopen("model.safetensors", "rb");
-  assert(f);
+typedef struct tensor {
+  int shape[4];
+  long begin;
+  long end;
+} tensor_t;
 
-  uint64_t hdr_sz;
-  assert(fread(&hdr_sz, sizeof(uint64_t), 1, f));
+static char key_buf[1024];
+static char shape_buf[1024];
+static char offsets_buf[1024];
+static tensor_t find(FILE * f, const char * key) {
+  assert(0 == fseek(f, 8, SEEK_SET));
 
   fscanf(f, "{\"__metadata__\":{\"format\":\"pt\"}");
   assert(!ferror(f) && !feof(f));
-
-  char * key = malloc(1024);
-  char * shape = malloc(1024);
-  char * offsets = malloc(1024);
 
   char c;
   while ((c = fgetc(f)) != '}') {
@@ -25,12 +26,51 @@ int main() {
 
     assert(3 == fscanf(f,
           "\"%[^\"]\":{\"dtype\":\"F32\",\"shape\":[%[^]]],\"data_offsets\":[%[^]]]}",
-          key, shape, offsets));
+          key_buf, shape_buf, offsets_buf));
+    if (strcmp(key, key_buf)) continue;
 
-    printf("%s %s %s\n", key, shape, offsets);
+    char * s1 = strchr(shape_buf, ',');
+    char * s2 = 0;
+    char * s3 = 0;
+    if (s1) {
+      *s1++ = 0;
+      s2 = strchr(s1, ',');
+      if (s2) {
+        *s2++ = 0;
+        s3 = strchr(s2, ',');
+        if (s3) *s3++ = 0;
+      }
+    }
+
+    char * e = strchr(offsets_buf, ',');
+    assert(e);
+    *e++ = 0;
+
+    return (tensor_t) {
+      .shape = {
+        atoi(shape_buf),
+        s1 ? atoi(s1) : 0,
+        s2 ? atoi(s2) : 0,
+        s3 ? atoi(s3) : 0,
+      },
+      .begin = atol(offsets_buf),
+      .end = atol(e),
+    };
   }
 
-  //printf("%s\n", json);
+  fprintf(stderr, "unknown key [%s]", key);
+  exit(1);
+}
+
+int main() {
+  FILE * f = fopen("model.safetensors", "rb");
+  assert(f);
+
+  tensor_t t = find(f, "h.1.attn.c_proj.weight");
+  
+  printf("%d,%d,%d,%d -- %ld %ld\n",
+      t.shape[0], t.shape[1], t.shape[2], t.shape[3],
+      t.begin, t.end);
 
   return 0;
 }
