@@ -2,6 +2,12 @@
 
 Dissecting GPT2
 
+Code so far:
+* `vocab.c` - tokenisation
+* `safetensor.c` - reading tensors file
+
+No code dependencies, it should be buildable with any C compiler.
+
 You probably need these files:
 * https://openaipublic.blob.core.windows.net/gpt-2/models/124M/vocab.bpe
 * https://openaipublic.blob.core.windows.net/gpt-2/models/124M/encoder.json
