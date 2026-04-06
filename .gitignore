@@ -1,3 +1,4 @@
 *.bpe
 *.ckpt.*
 *.json
+*.safetensors
