@@ -26,6 +26,9 @@ typedef struct utl_wstr {
   const wchar_t * str;
   int sz;
 } utl_wstr_t;
+static utl_wstr_t utl_wstr_new(const wchar_t * str, int sz) {
+  return (utl_wstr_t) { str, sz };
+}
 
 static char * utl_slurp(const char * file) {
   FILE * f = fopen(file, "rb");
@@ -144,7 +147,7 @@ typedef struct bpe_list {
 static bpe_list_t bpe_split(const wchar_t * txt, int len) {
   utl_wstr_t * list = malloc(sizeof(utl_wstr_t) * len);
   int lsz = len;
-  for (int i = 0; i < lsz; i++) list[i] = (utl_wstr_t){ txt + i, 1 };
+  for (int i = 0; i < lsz; i++) list[i] = utl_wstr_new(txt + i, 1);
 
   while (lsz > 1) {
     utl_wstr_t best = {0};
@@ -168,7 +171,7 @@ static bpe_list_t bpe_split(const wchar_t * txt, int len) {
       const wchar_t * t = list[i].str;
       int tsz = list[i].sz + list[i + 1].sz;
       if (tsz == best.sz && 0 == wcsncmp(t, best.str, best.sz)) {
-        list[wr++] = (utl_wstr_t) { t, best.sz };
+        list[wr++] = utl_wstr_new(t, best.sz);
         list[i + 1].sz = 0;
         i++;
       } else {
@@ -278,10 +281,7 @@ static void enc_init() {
     ptr++;
     delim = ' ';
 
-    enc_map[id] = (utl_wstr_t) {
-      .str = key,
-      .sz = ksz,
-    };
+    enc_map[id] = utl_wstr_new(key, ksz);
   }
 
   free(buf);
