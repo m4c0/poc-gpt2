@@ -8,6 +8,8 @@
 #include <string.h>
 #include <wchar.h>
 
+#define unreachable(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while (0)
+
 //{{{ [utl] Utilities
 //====================
 
@@ -17,6 +19,13 @@ typedef struct utl_wstr {
 } utl_wstr_t;
 static utl_wstr_t utl_wstr_new(const wchar_t * str, int sz) {
   return (utl_wstr_t) { str, sz };
+}
+
+static wchar_t * utl_wstr_printable(utl_wstr_t str) {
+  wchar_t * dup = malloc((str.sz + 1) * sizeof(wchar_t));
+  for (int i = 0; i < str.sz; i++) dup[i] = str.str[i] < 0x80 ? str.str[i] : '?';
+  dup[str.sz] = 0;
+  return dup;
 }
 
 static char * utl_slurp(const char * file) {
@@ -249,8 +258,7 @@ static int enc_find_id(utl_wstr_t str) {
     if (wcsncmp(str.str, enc_map[tkn].str, str.sz)) continue;
     return tkn;
   }
-  assert(0);
-  return -1;
+  unreachable("invalid token: %ls", utl_wstr_printable(str));
 }
 
 //}}}
