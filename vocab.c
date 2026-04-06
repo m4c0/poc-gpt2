@@ -244,13 +244,12 @@ static void enc_init() {
 }
 
 static int enc_find_id(const wchar_t * str) {
-  int tkn = -1;
-  for (tkn = 0; tkn < 50256; tkn++) {
+  for (int tkn = 0; tkn < 50256; tkn++) {
     if (wcscmp(str, enc_map[tkn].str)) continue;
-    break;
+    return tkn;
   }
-  assert(tkn >= 0);
-  return tkn;
+  assert(0);
+  return -1;
 }
 
 //}}}
