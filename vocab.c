@@ -8,17 +8,6 @@
 #include <string.h>
 #include <wchar.h>
 
-// The objective is to create valid GPT-2 tokens for this message
-static const char * text = "The quick brown fox jumps over the lazy dog.";
-
-// Because printing wchar on certain platforms (like Windows) just plain suck
-void debug_print(const wchar_t * str, unsigned len) {
-  for (int i = 0; i < len; i++) 
-    if (str[i] < 0x80) printf("%lc", str[i]);
-    else printf("U+%04x", str[i]);
-  puts("");
-}
-
 //{{{ [utl] Utilities
 //====================
 
@@ -186,45 +175,8 @@ static bpe_list_t bpe_split(const wchar_t * txt, int len) {
 }
 //}}}
 
-//{{{ [tkn] Tokenisation
-//=======================
-
-static unsigned tkn_next_pptoken_len(const char * b) {
-  if (!*b) return 0;
-  if (*b == '\'') {
-    switch (b[1]) {
-      case 'l':
-        if (b[2] == 'l') return 3;
-        break;
-      case 'r':
-      case 'v':
-        if (b[2] == 'e') return 3;
-        break;
-      case 's':
-      case 't':
-      case 'm':
-      case 'd':
-        return 2;
-    }
-  }
-
-  const char * bs = *b == ' ' ? b + 1 : b;
-  if (isalpha(*bs))
-    while (*bs && isalpha(*bs)) bs++;
-  else if (isdigit(*bs))
-    while (*bs && isdigit(*bs)) bs++;
-  else if (!isspace(*bs))
-    while (*bs && !isalpha(*bs) && !isdigit(*bs) && !isspace(*bs)) bs++;
-  else
-    while (*bs && isspace(*bs)) bs++;
-
-  return bs - b;
-}
-
-//}}}
-
-//{{{ [tkn] Tokenisation
-//=======================
+//{{{ [enc] Encodes wstr to token ids
+//====================================
 
 static utl_wstr_t enc_map[50257];
 static void enc_init() {
@@ -290,9 +242,60 @@ static void enc_init() {
   assert(0 == wcscmp(enc_map[50256].str, L"<|endoftext|>"));
 }
 
-static unsigned * tkn_tokenise(const char * txt) {
-  unsigned * tokens = malloc(sizeof(unsigned) * 100000);
-  unsigned tidx = 0;
+static int enc_find_id(const wchar_t * str) {
+  int tkn = -1;
+  for (tkn = 0; tkn < 50256; tkn++) {
+    if (wcscmp(str, enc_map[tkn].str)) continue;
+    break;
+  }
+  assert(tkn >= 0);
+  return tkn;
+}
+
+//}}}
+
+//{{{ [tkn] Tokenisation
+//=======================
+
+static unsigned tkn_next_pptoken_len(const char * b) {
+  if (!*b) return 0;
+  if (*b == '\'') {
+    switch (b[1]) {
+      case 'l':
+        if (b[2] == 'l') return 3;
+        break;
+      case 'r':
+      case 'v':
+        if (b[2] == 'e') return 3;
+        break;
+      case 's':
+      case 't':
+      case 'm':
+      case 'd':
+        return 2;
+    }
+  }
+
+  const char * bs = *b == ' ' ? b + 1 : b;
+  if (isalpha(*bs))
+    while (*bs && isalpha(*bs)) bs++;
+  else if (isdigit(*bs))
+    while (*bs && isdigit(*bs)) bs++;
+  else if (!isspace(*bs))
+    while (*bs && !isalpha(*bs) && !isdigit(*bs) && !isspace(*bs)) bs++;
+  else
+    while (*bs && isspace(*bs)) bs++;
+
+  return bs - b;
+}
+
+typedef struct tkn_ids {
+  int * ids;
+  int sz;
+} tkn_ids_t;
+static tkn_ids_t tkn_encode(const char * txt) {
+  int * ids = malloc(sizeof(int) * 1024);
+  int idx = 0;
 
   unsigned len;
   while ((len = tkn_next_pptoken_len(txt))) {
@@ -300,19 +303,13 @@ static unsigned * tkn_tokenise(const char * txt) {
     bpe_list_t list = bpe_split(token, len);
 
     for (int i = 0; i < list.sz; i++) {
-      int tkn = -1;
-      for (tkn = 0; tkn < 50256; tkn++) {
-        if (wcscmp(list.list[i].str, enc_map[tkn].str)) continue;
-        tokens[tidx++] = tkn;
-        break;
-      }
-      assert(tkn >= 0);
+      ids[idx++] = enc_find_id(list.list[i].str);
     }
 
     txt += len;
   }
 
-  return tokens;
+  return (tkn_ids_t) { ids, idx };
 }
 
 //}}}
@@ -322,26 +319,10 @@ int main() {
   bpe_init();
   enc_init();
 
-  unsigned * tokens = malloc(sizeof(unsigned) * 100000);
-  unsigned tidx = 0;
+  const char * text = "The quick brown fox jumps over the lazy dog.";
+  tkn_ids_t ts = tkn_encode(text);
 
-  const char * txt = text;
-  unsigned len;
-  while ((len = tkn_next_pptoken_len(txt))) {
-    wchar_t * token = byt_encode_bytes(txt, len);
-    bpe_list_t list = bpe_split(token, len);
-
-    for (int i = 0; i < list.sz; i++) {
-      int tkn = -1;
-      for (tkn = 0; tkn < 50256; tkn++) {
-        if (wcscmp(list.list[i].str, enc_map[tkn].str)) continue;
-        tokens[tidx++] = tkn;
-        break;
-      }
-      assert(tkn >= 0);
-    }
-
-    txt += len;
-  }
+  for (int i = 0; i < ts.sz; i++) printf("%d ", ts.ids[i]);
+  printf("\n");
 
 }
