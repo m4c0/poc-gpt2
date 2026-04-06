@@ -22,6 +22,11 @@ void debug_print(const wchar_t * str, unsigned len) {
 //{{{ [utl] Utilities
 //====================
 
+typedef struct utl_wstr {
+  const wchar_t * str;
+  int sz;
+} utl_wstr_t;
+
 static char * utl_slurp(const char * file) {
   FILE * f = fopen(file, "rb");
   assert(f);
@@ -74,11 +79,7 @@ static void byt_init() {
 //{{{ [bpe] Byte-pair encoding map
 //=================================
 
-typedef struct bpe_str {
-  const wchar_t * str;
-  int sz;
-} bpe_str_t;
-static bpe_str_t bpe_map[50000] = {0};
+static utl_wstr_t bpe_map[50000] = {0};
 static wchar_t * bpe_mbstowcs(const char * u8, wchar_t * mb) {
   // This is equivalent to mbstowcs but we don't need to rely on
   // changing/restoring the multibyte locale
@@ -111,7 +112,7 @@ static void bpe_init() {
   assert(bpe[0] == '#');
   assert(bpe = strchr(bpe, '\n') + 1);
 
-  bpe_str_t * ptr = bpe_map;
+  utl_wstr_t * ptr = bpe_map;
   char * buf = bpe;
   char * nxt;
   while ((nxt = strchr(buf, '\n'))) {
@@ -137,18 +138,18 @@ static void bpe_init() {
 }
 
 typedef struct bpe_list {
-  bpe_str_t * list;
+  utl_wstr_t * list;
   int sz;
 } bpe_list_t;
 static bpe_list_t bpe_split(const wchar_t * txt, int len) {
-  bpe_str_t * list = malloc(sizeof(bpe_str_t) * len);
+  utl_wstr_t * list = malloc(sizeof(utl_wstr_t) * len);
   int lsz = len;
-  for (int i = 0; i < lsz; i++) list[i] = (bpe_str_t){ txt + i, 1 };
+  for (int i = 0; i < lsz; i++) list[i] = (utl_wstr_t){ txt + i, 1 };
 
   while (lsz > 1) {
-    bpe_str_t best = {0};
+    utl_wstr_t best = {0};
     for (int n = 0; n < 50000; n++) {
-      bpe_str_t ns = bpe_map[n];
+      utl_wstr_t ns = bpe_map[n];
       for (int i = 0; i < lsz - 1; i++) {
         const wchar_t * t = list[i].str;
         int tsz = list[i].sz + list[i + 1].sz;
@@ -167,7 +168,7 @@ static bpe_list_t bpe_split(const wchar_t * txt, int len) {
       const wchar_t * t = list[i].str;
       int tsz = list[i].sz + list[i + 1].sz;
       if (tsz == best.sz && 0 == wcsncmp(t, best.str, best.sz)) {
-        list[wr++] = (bpe_str_t) { t, best.sz };
+        list[wr++] = (utl_wstr_t) { t, best.sz };
         list[i + 1].sz = 0;
         i++;
       } else {
@@ -222,11 +223,7 @@ static unsigned tkn_next_pptoken_len(const char * b) {
 //{{{ [tkn] Tokenisation
 //=======================
 
-typedef struct enc_pair {
-  wchar_t * str;
-  unsigned sz;
-} enc_pair_t;
-static enc_pair_t enc_map[50257];
+static utl_wstr_t enc_map[50257];
 static void enc_init() {
   char * buf = utl_slurp("encoder.json");
 
@@ -281,7 +278,7 @@ static void enc_init() {
     ptr++;
     delim = ' ';
 
-    enc_map[id] = (enc_pair_t) {
+    enc_map[id] = (utl_wstr_t) {
       .str = key,
       .sz = ksz,
     };
