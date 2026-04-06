@@ -249,7 +249,11 @@ static void enc_init() {
   free(buf);
 
   assert(0 == wcscmp(enc_map[236].str, L"\x130"));
+  assert(0 == wcscmp(enc_map[2068].str, L"\x120quick"));
   assert(0 == wcscmp(enc_map[50256].str, L"<|endoftext|>"));
+  assert(1 == enc_map[236].sz);
+  assert(6 == enc_map[2068].sz);
+  assert(13 == enc_map[50256].sz);
 }
 
 static int enc_find_id(utl_wstr_t str) {
