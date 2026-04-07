@@ -80,13 +80,17 @@ int main() {
   FILE * f = fopen("model.safetensors", "rb");
   assert(f);
 
-  list(f);
+  // list(f);
 
-  tensor_t t = find(f, "h.1.attn.c_proj.weight");
+  tensor_t wpe = find(f, "wpe.weight");
+  tensor_t wte = find(f, "wte.weight");
   
-  printf("%d,%d,%d,%d -- %ld %ld\n",
-      t.shape[0], t.shape[1], t.shape[2], t.shape[3],
-      t.begin, t.end);
+  printf("wpe: %d,%d,%d,%d -- %ld %ld -- %ld\n",
+      wpe.shape[0], wpe.shape[1], wpe.shape[2], wpe.shape[3],
+      wpe.begin, wpe.end, wpe.end - wpe.begin);
+  printf("wte: %d,%d,%d,%d -- %ld %ld -- %ld\n",
+      wte.shape[0], wte.shape[1], wte.shape[2], wte.shape[3],
+      wte.begin, wte.end, wte.end - wte.begin);
 
   return 0;
 }
