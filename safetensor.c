@@ -1,5 +1,6 @@
 #pragma leco tool
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,10 +98,25 @@ int main() {
   float wte[768];
   get_row(f, "wte.weight", 464, wte, 768); // The
 
-  float r[768];
-  for (int i = 0; i < 768; i++) r[i] = wpe[i] + wte[i];
+  // Embedding
 
-  for (int i = 0; i < 768; i++) printf("%9.6f + %9.6f = %9.6f\n", wpe[i], wte[i], r[i]);
+  float x[768];
+  for (int i = 0; i < 768; i++) x[i] = wpe[i] + wte[i];
+
+  // Norm
+
+  float mean = 0;
+  for (int i = 0; i < 768; i++) mean += x[i];
+  mean /= 768;
+
+  float var = 0;
+  for (int i = 0; i < 768; i++) var += (x[i] - mean) * (x[i] - mean);
+  var /= 768;
+
+  float y[256];
+  for (int i = 0; i < 768; i++) y[i] = (x[i] - mean) / sqrtf(var + 1e-5);
+
+  for (int i = 0; i < 768; i++) printf("%9.6f\n", y[i]);
 
   return 0;
 }
