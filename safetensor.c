@@ -9,6 +9,7 @@
 typedef struct tensor {
   int shape[4];
   uint64_t begin;
+  uint64_t sz;
 } tensor_t;
 
 static char key_buf[1024];
@@ -56,6 +57,7 @@ static tensor_t find(FILE * f, const char * key) {
         s3 ? atoi(s3) : 0,
       },
       .begin = atoll(offsets_buf) + hsz + 8,
+      .sz = atoll(e) - atoll(offsets_buf),
     };
   }
 
@@ -71,6 +73,17 @@ void get_row(FILE * f, const char * tensor, int row, float * data, unsigned dsz)
   uint64_t rowsz = dsz * 4;
   assert(0 == fseek(f, t.begin + rowsz * row, SEEK_SET));
   assert(fread(data, rowsz, 1, f));
+}
+
+void get(FILE * f, const char * tensor, float * data, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+  tensor_t t = find(f, tensor);
+  assert(s0 == t.shape[0]);
+  assert(s1 == t.shape[1]);
+  assert(s2 == t.shape[2]);
+  assert(s3 == t.shape[3]);
+
+  assert(0 == fseek(f, t.begin, SEEK_SET));
+  assert(fread(data, t.sz, 1, f));
 }
 
 void list(FILE * f) {
@@ -103,7 +116,12 @@ int main() {
   float x[768];
   for (int i = 0; i < 768; i++) x[i] = wpe[i] + wte[i];
 
-  // Norm
+  // Normalisation of Layer 1
+
+  float ln1w[768];
+  get(f, "h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
+  float ln1b[768];
+  get(f, "h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
 
   float mean = 0;
   for (int i = 0; i < 768; i++) mean += x[i];
@@ -114,7 +132,7 @@ int main() {
   var /= 768;
 
   float y[256];
-  for (int i = 0; i < 768; i++) y[i] = (x[i] - mean) / sqrtf(var + 1e-5);
+  for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
 
   for (int i = 0; i < 768; i++) printf("%9.6f\n", y[i]);
 
