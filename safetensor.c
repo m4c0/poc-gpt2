@@ -95,9 +95,12 @@ int main() {
   float wpe[768];
   get_row(f, "wpe.weight", 0, wpe, 768);
   float wte[768];
-  get_row(f, "wte.weight", 0, wte, 768);
+  get_row(f, "wte.weight", 464, wte, 768); // The
 
-  for (int i = 0; i < 768; i++) printf("%f %f\n", wpe[i], wte[i]);
+  float r[768];
+  for (int i = 0; i < 768; i++) r[i] = wpe[i] + wte[i];
+
+  for (int i = 0; i < 768; i++) printf("%9.6f + %9.6f = %9.6f\n", wpe[i], wte[i], r[i]);
 
   return 0;
 }
