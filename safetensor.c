@@ -7,15 +7,16 @@
 
 typedef struct tensor {
   int shape[4];
-  long begin;
-  long end;
+  uint64_t begin;
 } tensor_t;
 
 static char key_buf[1024];
 static char shape_buf[1024];
 static char offsets_buf[1024];
 static tensor_t find(FILE * f, const char * key) {
-  assert(0 == fseek(f, 8, SEEK_SET));
+  uint64_t hsz;
+  assert(0 == fseek(f, 0, SEEK_SET));
+  assert(fread(&hsz, 8, 1, f));
 
   fscanf(f, "{\"__metadata__\":{\"format\":\"pt\"}");
   assert(!ferror(f) && !feof(f));
@@ -53,13 +54,22 @@ static tensor_t find(FILE * f, const char * key) {
         s2 ? atoi(s2) : 0,
         s3 ? atoi(s3) : 0,
       },
-      .begin = atol(offsets_buf),
-      .end = atol(e),
+      .begin = atoll(offsets_buf) + hsz + 8,
     };
   }
 
   fprintf(stderr, "unknown key [%s]", key);
   exit(1);
+}
+
+void get_row(FILE * f, const char * tensor, int row, float * data, unsigned dsz) {
+  tensor_t t = find(f, tensor);
+  assert(row < t.shape[0]);
+  assert(dsz == t.shape[1]);
+
+  uint64_t rowsz = dsz * 4;
+  assert(0 == fseek(f, t.begin + rowsz * row, SEEK_SET));
+  assert(fread(data, rowsz, 1, f));
 }
 
 void list(FILE * f) {
@@ -80,17 +90,14 @@ int main() {
   FILE * f = fopen("model.safetensors", "rb");
   assert(f);
 
-  // list(f);
+  //list(f);
 
-  tensor_t wpe = find(f, "wpe.weight");
-  tensor_t wte = find(f, "wte.weight");
-  
-  printf("wpe: %d,%d,%d,%d -- %ld %ld -- %ld\n",
-      wpe.shape[0], wpe.shape[1], wpe.shape[2], wpe.shape[3],
-      wpe.begin, wpe.end, wpe.end - wpe.begin);
-  printf("wte: %d,%d,%d,%d -- %ld %ld -- %ld\n",
-      wte.shape[0], wte.shape[1], wte.shape[2], wte.shape[3],
-      wte.begin, wte.end, wte.end - wte.begin);
+  float wpe[768];
+  get_row(f, "wpe.weight", 0, wpe, 768);
+  float wte[768];
+  get_row(f, "wte.weight", 0, wte, 768);
+
+  for (int i = 0; i < 768; i++) printf("%f %f\n", wpe[i], wte[i]);
 
   return 0;
 }
