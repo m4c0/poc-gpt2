@@ -134,7 +134,16 @@ int main() {
   float y[256];
   for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
 
-  for (int i = 0; i < 768; i++) printf("%9.6f\n", y[i]);
+  // Attention Layer 1
+
+  // attn.c_attn contains all data for Q, followed by K, followed by V
+  // Then each of QKV is split into heads (12)
+  float * caw = malloc(4 * 768 * 2304);
+  get(f, "h.0.attn.c_attn.weight", caw, 768, 2304, 0, 0);
+  float * cab = malloc(4 * 768 * 2304);
+  get(f, "h.0.attn.c_attn.bias", cab, 2304, 0, 0, 0);
+
+  //for (int i = 0; i < 768; i++) printf("%9.6f\n", y[i]);
 
   return 0;
 }
