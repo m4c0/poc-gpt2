@@ -6,16 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct tensor {
+typedef struct sft_tensor {
   int shape[4];
   uint64_t begin;
   uint64_t sz;
-} tensor_t;
+} sft_tensor_t;
 
-static char key_buf[1024];
-static char shape_buf[1024];
-static char offsets_buf[1024];
-static tensor_t find(FILE * f, const char * key) {
+static char sft_key_buf[1024];
+static char sft_shape_buf[1024];
+static char sft_offsets_buf[1024];
+static sft_tensor_t sft_find(FILE * f, const char * key) {
   uint64_t hsz;
   assert(0 == fseek(f, 0, SEEK_SET));
   assert(fread(&hsz, 8, 1, f));
@@ -29,10 +29,10 @@ static tensor_t find(FILE * f, const char * key) {
 
     assert(3 == fscanf(f,
           "\"%[^\"]\":{\"dtype\":\"F32\",\"shape\":[%[^]]],\"data_offsets\":[%[^]]]}",
-          key_buf, shape_buf, offsets_buf));
-    if (strcmp(key, key_buf)) continue;
+          sft_key_buf, sft_shape_buf, sft_offsets_buf));
+    if (strcmp(key, sft_key_buf)) continue;
 
-    char * s1 = strchr(shape_buf, ',');
+    char * s1 = strchr(sft_shape_buf, ',');
     char * s2 = 0;
     char * s3 = 0;
     if (s1) {
@@ -45,19 +45,19 @@ static tensor_t find(FILE * f, const char * key) {
       }
     }
 
-    char * e = strchr(offsets_buf, ',');
+    char * e = strchr(sft_offsets_buf, ',');
     assert(e);
     *e++ = 0;
 
-    return (tensor_t) {
+    return (sft_tensor_t) {
       .shape = {
-        atoi(shape_buf),
+        atoi(sft_shape_buf),
         s1 ? atoi(s1) : 0,
         s2 ? atoi(s2) : 0,
         s3 ? atoi(s3) : 0,
       },
-      .begin = atoll(offsets_buf) + hsz + 8,
-      .sz = atoll(e) - atoll(offsets_buf),
+      .begin = atoll(sft_offsets_buf) + hsz + 8,
+      .sz = atoll(e) - atoll(sft_offsets_buf),
     };
   }
 
@@ -65,8 +65,8 @@ static tensor_t find(FILE * f, const char * key) {
   exit(1);
 }
 
-void get_row(FILE * f, const char * tensor, int row, float * data, unsigned dsz) {
-  tensor_t t = find(f, tensor);
+void sft_get_row(FILE * f, const char * tensor, int row, float * data, unsigned dsz) {
+  sft_tensor_t t = sft_find(f, tensor);
   assert(row < t.shape[0]);
   assert(dsz == t.shape[1]);
 
@@ -75,8 +75,8 @@ void get_row(FILE * f, const char * tensor, int row, float * data, unsigned dsz)
   assert(fread(data, rowsz, 1, f));
 }
 
-void get(FILE * f, const char * tensor, float * data, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
-  tensor_t t = find(f, tensor);
+void sft_get(FILE * f, const char * tensor, float * data, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+  sft_tensor_t t = sft_find(f, tensor);
   assert(s0 == t.shape[0]);
   assert(s1 == t.shape[1]);
   assert(s2 == t.shape[2]);
@@ -95,8 +95,8 @@ void list(FILE * f) {
   while ((c = fgetc(f)) != '}') {
     assert(1 == fscanf(f,
           "\"%[^\"]\":{\"dtype\":\"F32\",\"shape\":[%*[^]]],\"data_offsets\":[%*[^]]]}",
-          key_buf));
-    puts(key_buf);
+          sft_key_buf));
+    puts(sft_key_buf);
   }
 }
 
@@ -107,9 +107,9 @@ int main() {
   //list(f);
 
   float wpe[768];
-  get_row(f, "wpe.weight", 0, wpe, 768);
+  sft_get_row(f, "wpe.weight", 0, wpe, 768);
   float wte[768];
-  get_row(f, "wte.weight", 464, wte, 768); // The
+  sft_get_row(f, "wte.weight", 464, wte, 768); // The
 
   // Embedding
 
@@ -119,9 +119,9 @@ int main() {
   // Normalisation of Layer 1
 
   float ln1w[768];
-  get(f, "h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
+  sft_get(f, "h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
   float ln1b[768];
-  get(f, "h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
+  sft_get(f, "h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
 
   float mean = 0;
   for (int i = 0; i < 768; i++) mean += x[i];
@@ -139,9 +139,9 @@ int main() {
   // attn.c_attn contains all data for Q, followed by K, followed by V
   // Then each of QKV is split into heads (12)
   float * caw = malloc(4 * 768 * 2304);
-  get(f, "h.0.attn.c_attn.weight", caw, 768, 2304, 0, 0);
+  sft_get(f, "h.0.attn.c_attn.weight", caw, 768, 2304, 0, 0);
   float * cab = malloc(4 * 2304);
-  get(f, "h.0.attn.c_attn.bias", cab, 2304, 0, 0, 0);
+  sft_get(f, "h.0.attn.c_attn.bias", cab, 2304, 0, 0, 0);
 
   // y x caw + cab
 
