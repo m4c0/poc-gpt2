@@ -140,8 +140,11 @@ int main() {
   // Then each of QKV is split into heads (12)
   float * caw = malloc(4 * 768 * 2304);
   get(f, "h.0.attn.c_attn.weight", caw, 768, 2304, 0, 0);
-  float * cab = malloc(4 * 768 * 2304);
+  float * cab = malloc(4 * 2304);
   get(f, "h.0.attn.c_attn.bias", cab, 2304, 0, 0, 0);
+
+  // y x caw + cab
+
 
   //for (int i = 0; i < 768; i++) printf("%9.6f\n", y[i]);
 
