@@ -1,4 +1,3 @@
-#pragma leco tool
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>

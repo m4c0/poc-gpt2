@@ -1,4 +1,11 @@
+build
+safetensor
+vocab
+vulkan
 *.bpe
 *.ckpt.*
+*.dSYM
+*.exe
 *.json
 *.safetensors
+*.dylib
