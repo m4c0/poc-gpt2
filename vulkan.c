@@ -11,6 +11,7 @@
 
 VkPhysicalDevice vlk_pd;
 unsigned vlk_qf;
+VkPipelineLayout vlk_pls[1];
 VkPipeline vlk_ppls[1];
 
 static inline VkDevice vlk_dev() { return volkGetLoadedDevice(); }
@@ -89,8 +90,14 @@ static VkShaderModule vlk_create_shader_module() {
   return mod;
 }
 
+static void vlk_create_pipeline_layouts() {
+  VkPipelineLayoutCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+  };
+  _(vkCreatePipelineLayout(vlk_dev(), &info, NULL, vlk_pls));
+}
 static void vlk_create_pipelines() {
-  VkShaderModule mod = vlk_create_shader_module();;
+  VkShaderModule mod = vlk_create_shader_module();
 
   VkComputePipelineCreateInfo infos[] = {{
     .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
@@ -100,6 +107,7 @@ static void vlk_create_pipelines() {
       .pName = "main",
       .module = mod,
     },
+    .layout = vlk_pls[0],
   }};
 
   _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, vlk_ppls));
@@ -112,8 +120,11 @@ int main() {
   vlk_create_instance();
   vlk_find_physical_device();
   vlk_create_device();
+  vlk_create_pipeline_layouts();
   vlk_create_pipelines();
 
+  for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
+  for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
   vkDestroyDevice(vlk_dev(), NULL);
   vkDestroyInstance(volkGetLoadedInstance(), NULL);
 }
