@@ -146,6 +146,16 @@ static void vlk_create_command_buffer() {
   _(vkAllocateCommandBuffers(vlk_dev(), &info, &vlk_cb));
 }
 
+static void vlk_begin_command_buffer() {
+  VkCommandBufferBeginInfo info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+  };
+  vkBeginCommandBuffer(vlk_cb, &info);
+}
+static void vlk_end_command_buffer() {
+  vkEndCommandBuffer(vlk_cb);
+}
+
 static void vlk_submit() {
   VkSubmitInfo info = {
     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -166,11 +176,14 @@ int main() {
   vlk_create_command_pool();
   vlk_create_command_buffer();
 
+  vlk_begin_command_buffer();
+  vlk_end_command_buffer();
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
 
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
+  vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
   vkDestroyDevice(vlk_dev(), NULL);
   vkDestroyInstance(volkGetLoadedInstance(), NULL);
 }
