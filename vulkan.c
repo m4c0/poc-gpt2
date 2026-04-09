@@ -177,6 +177,8 @@ int main() {
   vlk_create_command_buffer();
 
   vlk_begin_command_buffer();
+  vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
+  vkCmdDispatch(vlk_cb, 1, 1, 1);
   vlk_end_command_buffer();
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
