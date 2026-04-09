@@ -9,13 +9,15 @@
 
 #define _(X) assert(VK_SUCCESS == (X));
 
-VkPhysicalDevice vlk_pd;
-unsigned vlk_qf;
-VkPipelineLayout vlk_pls[1];
-VkPipeline vlk_ppls[1];
-VkQueue vlk_q;
-VkCommandPool vlk_cpool;
+VkBuffer vlk_bufs[1];
 VkCommandBuffer vlk_cb;
+VkCommandPool vlk_cpool;
+VkDeviceMemory vlk_mem;
+VkPhysicalDevice vlk_pd;
+VkPipeline vlk_ppls[1];
+VkPipelineLayout vlk_pls[1];
+VkQueue vlk_q;
+unsigned vlk_qf;
 
 static inline VkDevice vlk_dev() { return volkGetLoadedDevice(); }
 
@@ -130,6 +132,23 @@ static void vlk_create_pipelines() {
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
 }
 
+static void vlk_create_buffers() {
+  VkBufferCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+    .size = 16,
+    .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  };
+  _(vkCreateBuffer(vlk_dev(), &info, NULL, &vlk_bufs[0]));
+}
+
+static void vlk_allocate_memory() {
+  VkMemoryAllocateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+    .allocationSize = 16,
+  };
+  _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mem));
+}
+
 static void vlk_create_command_pool() {
   VkCommandPoolCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -173,8 +192,12 @@ int main() {
   vlk_create_device();
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
+  vlk_create_buffers();
+  vlk_allocate_memory();
   vlk_create_command_pool();
   vlk_create_command_buffer();
+
+  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[0], vlk_mem, 0));
 
   vlk_begin_command_buffer();
   vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
@@ -185,6 +208,8 @@ int main() {
 
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
+  for (int i = 0; i < 1; i++) vkDestroyBuffer(vlk_dev(), vlk_bufs[i], NULL);
+  for (int i = 0; i < 1; i++) vkFreeMemory(vlk_dev(), vlk_mem, NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
   vkDestroyDevice(vlk_dev(), NULL);
   vkDestroyInstance(volkGetLoadedInstance(), NULL);
