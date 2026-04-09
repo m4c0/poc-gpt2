@@ -7,7 +7,13 @@
 
 #include "Vulkan-Headers/include/vulkan/vulkan_core.h"
 
-VkInstance vlk_create_instance() {
+#define _(X) assert(VK_SUCCESS == (X));
+
+VkPhysicalDevice vlk_pd;
+unsigned vlk_qf;
+VkPipeline vlk_ppls[1];
+
+void vlk_create_instance() {
   const char * ext[] = {
     VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
   };
@@ -17,17 +23,45 @@ VkInstance vlk_create_instance() {
     .enabledExtensionCount = 1,
     .ppEnabledExtensionNames = ext,
   };
-
   VkInstance res;
-  assert(VK_SUCCESS == vkCreateInstance(&info, NULL, &res));
-  return res;
+  _(vkCreateInstance(&info, NULL, &res));
+  volkLoadInstance(res);
+}
+
+void vlk_find_physical_device() {
+  VkPhysicalDevice pd[16];
+  uint32_t pdsz = 16;
+  _(vkEnumeratePhysicalDevices(volkGetLoadedInstance(), &pdsz, pd));
+  for (int i = 0; i < pdsz; i++) {
+    VkQueueFamilyProperties qp[16];
+    uint32_t qpsz = 16;
+    vkGetPhysicalDeviceQueueFamilyProperties(pd[i], &qpsz, qp);
+    for (vlk_qf = 0; vlk_qf < qpsz; vlk_qf++) {
+      if ((qp[vlk_qf].queueFlags & VK_QUEUE_COMPUTE_BIT) == 0) continue;
+      if ((qp[vlk_qf].queueFlags & VK_QUEUE_TRANSFER_BIT) == 0) continue;
+      vlk_pd = pd[i];
+      return;
+    }
+  }
+  assert(0);
+}
+
+void vlk_create_device() {
+  VkDeviceCreateInfo info = (VkDeviceCreateInfo) {
+    .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+  };
+  VkDevice res;
+  _(vkCreateDevice(vlk_pd, &info, NULL, &res));
+  volkLoadDevice(res);
 }
 
 int main() {
-  assert(VK_SUCCESS == volkInitialize());
+  _(volkInitialize());
 
-  VkInstance inst = vlk_create_instance();
-  volkLoadInstance(inst);
+  vlk_create_instance();
+  vlk_find_physical_device();
+  vlk_create_device();
 
-  vkDestroyInstance(inst, NULL);
+  vkDestroyDevice(volkGetLoadedDevice(), NULL);
+  vkDestroyInstance(volkGetLoadedInstance(), NULL);
 }
