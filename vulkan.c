@@ -12,6 +12,7 @@
 VkBuffer vlk_bufs[1];
 VkCommandBuffer vlk_cb;
 VkCommandPool vlk_cpool;
+VkDescriptorSetLayout vlk_dsls[1];
 VkDeviceMemory vlk_mem;
 VkPhysicalDevice vlk_pd;
 VkPipeline vlk_ppls[1];
@@ -108,9 +109,18 @@ static VkShaderModule vlk_create_shader_module() {
   return mod;
 }
 
+static void vlk_create_descriptor_set_layouts() {
+  VkDescriptorSetLayoutCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+  };
+  _(vkCreateDescriptorSetLayout(vlk_dev(), &info, NULL, vlk_dsls));
+}
+
 static void vlk_create_pipeline_layouts() {
   VkPipelineLayoutCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    .setLayoutCount = 1,
+    .pSetLayouts = vlk_dsls,
   };
   _(vkCreatePipelineLayout(vlk_dev(), &info, NULL, vlk_pls));
 }
@@ -190,6 +200,7 @@ int main() {
   vlk_create_instance();
   vlk_find_physical_device();
   vlk_create_device();
+  vlk_create_descriptor_set_layouts();
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
   vlk_create_buffers();
@@ -206,6 +217,7 @@ int main() {
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
 
+  for (int i = 0; i < 1; i++) vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyBuffer(vlk_dev(), vlk_bufs[i], NULL);
