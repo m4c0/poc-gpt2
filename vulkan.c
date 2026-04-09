@@ -13,7 +13,9 @@ VkPhysicalDevice vlk_pd;
 unsigned vlk_qf;
 VkPipeline vlk_ppls[1];
 
-void vlk_create_instance() {
+static inline VkDevice vlk_dev() { return volkGetLoadedDevice(); }
+
+static void vlk_create_instance() {
   const char * ext[] = {
     VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
   };
@@ -28,7 +30,7 @@ void vlk_create_instance() {
   volkLoadInstance(res);
 }
 
-void vlk_find_physical_device() {
+static void vlk_find_physical_device() {
   VkPhysicalDevice pd[16];
   uint32_t pdsz = 16;
   _(vkEnumeratePhysicalDevices(volkGetLoadedInstance(), &pdsz, pd));
@@ -46,7 +48,7 @@ void vlk_find_physical_device() {
   assert(0);
 }
 
-void vlk_create_device() {
+static void vlk_create_device() {
   const float pri = 1.0f;
   VkDeviceQueueCreateInfo q = (VkDeviceQueueCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -63,13 +65,55 @@ void vlk_create_device() {
   volkLoadDevice(res);
 }
 
+static VkShaderModule vlk_create_shader_module() {
+  FILE * f = fopen("vulkan.comp.spv", "rb");
+  assert(f);
+  assert(0 == fseek(f, 0, SEEK_END));
+  long sz = ftell(f);
+  assert(sz && (sz % 4 == 0));
+  assert(0 == fseek(f, 0, SEEK_SET));
+  uint32_t * data = malloc(sz);
+  assert(1 == fread(data, sz, 1, f));
+  fclose(f);
+
+  VkShaderModuleCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+    .codeSize = sz,
+    .pCode = data,
+  };
+
+  VkShaderModule mod;
+  _(vkCreateShaderModule(vlk_dev(), &info, NULL, &mod));
+
+  free(data);
+  return mod;
+}
+
+static void vlk_create_pipelines() {
+  VkShaderModule mod = vlk_create_shader_module();;
+
+  VkComputePipelineCreateInfo infos[] = {{
+    .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+    .stage = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+      .pName = "main",
+      .module = mod,
+    },
+  }};
+
+  _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, vlk_ppls));
+  vkDestroyShaderModule(vlk_dev(), mod, NULL);
+}
+
 int main() {
   _(volkInitialize());
 
   vlk_create_instance();
   vlk_find_physical_device();
   vlk_create_device();
+  vlk_create_pipelines();
 
-  vkDestroyDevice(volkGetLoadedDevice(), NULL);
+  vkDestroyDevice(vlk_dev(), NULL);
   vkDestroyInstance(volkGetLoadedInstance(), NULL);
 }
