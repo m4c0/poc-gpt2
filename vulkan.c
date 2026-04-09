@@ -47,8 +47,16 @@ void vlk_find_physical_device() {
 }
 
 void vlk_create_device() {
+  const float pri = 1.0f;
+  VkDeviceQueueCreateInfo q = (VkDeviceQueueCreateInfo) {
+    .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+    .queueCount = 1,
+    .pQueuePriorities = &pri,
+  };
   VkDeviceCreateInfo info = (VkDeviceCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+    .queueCreateInfoCount = 1,
+    .pQueueCreateInfos = &q,
   };
   VkDevice res;
   _(vkCreateDevice(vlk_pd, &info, NULL, &res));
