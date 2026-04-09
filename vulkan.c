@@ -13,6 +13,9 @@ VkPhysicalDevice vlk_pd;
 unsigned vlk_qf;
 VkPipelineLayout vlk_pls[1];
 VkPipeline vlk_ppls[1];
+VkQueue vlk_q;
+VkCommandPool vlk_cpool;
+VkCommandBuffer vlk_cb;
 
 static inline VkDevice vlk_dev() { return volkGetLoadedDevice(); }
 
@@ -75,6 +78,8 @@ static void vlk_create_device() {
   VkDevice res;
   _(vkCreateDevice(vlk_pd, &info, NULL, &res));
   volkLoadDevice(res);
+
+  vkGetDeviceQueue(res, vlk_qf, 0, &vlk_q);
 }
 
 static VkShaderModule vlk_create_shader_module() {
@@ -125,6 +130,31 @@ static void vlk_create_pipelines() {
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
 }
 
+static void vlk_create_command_pool() {
+  VkCommandPoolCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+  };
+  _(vkCreateCommandPool(vlk_dev(), &info, NULL, &vlk_cpool));
+}
+
+static void vlk_create_command_buffer() {
+  VkCommandBufferAllocateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+    .commandPool = vlk_cpool,
+    .commandBufferCount = 1,
+  };
+  _(vkAllocateCommandBuffers(vlk_dev(), &info, &vlk_cb));
+}
+
+static void vlk_submit() {
+  VkSubmitInfo info = {
+    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+    .pCommandBuffers = &vlk_cb,
+    .commandBufferCount = 1,
+  };
+  _(vkQueueSubmit(vlk_q, 1, &info, NULL));
+}
+
 int main() {
   _(volkInitialize());
 
@@ -133,6 +163,11 @@ int main() {
   vlk_create_device();
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
+  vlk_create_command_pool();
+  vlk_create_command_buffer();
+
+  vlk_submit();
+  vkDeviceWaitIdle(vlk_dev());
 
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
