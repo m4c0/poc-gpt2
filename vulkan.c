@@ -20,11 +20,16 @@ static void vlk_create_instance() {
   const char * ext[] = {
     VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
   };
+  VkApplicationInfo app = {
+    .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+    .apiVersion = VK_API_VERSION_1_2,
+  };
   VkInstanceCreateInfo info = (VkInstanceCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
     .flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
     .enabledExtensionCount = 1,
     .ppEnabledExtensionNames = ext,
+    .pApplicationInfo = &app,
   };
   VkInstance res;
   _(vkCreateInstance(&info, NULL, &res));
@@ -55,12 +60,18 @@ static void vlk_create_device() {
     .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
     .queueCount = 1,
     .pQueuePriorities = &pri,
+    .queueFamilyIndex = vlk_qf,
   };
   VkDeviceCreateInfo info = (VkDeviceCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
     .queueCreateInfoCount = 1,
     .pQueueCreateInfos = &q,
   };
+#ifdef __APPLE__
+  const char * ext[1] = { "VK_KHR_portability_subset" };
+  info.ppEnabledExtensionNames = ext;
+  info.enabledExtensionCount = 1;
+#endif
   VkDevice res;
   _(vkCreateDevice(vlk_pd, &info, NULL, &res));
   volkLoadDevice(res);
