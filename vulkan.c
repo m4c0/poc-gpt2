@@ -217,6 +217,7 @@ static void vlk_allocate_memories() {
     .memoryTypeIndex = local,
   };
   _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[0]));
+  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[0], vlk_mems[0], 0));
 
   info = (VkMemoryAllocateInfo) {
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -224,6 +225,7 @@ static void vlk_allocate_memories() {
     .memoryTypeIndex = host,
   };
   _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[1]));
+  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[1], vlk_mems[1], 0));
 }
 
 static void vlk_create_command_pool() {
@@ -276,9 +278,6 @@ int main() {
   vlk_allocate_memories();
   vlk_create_command_pool();
   vlk_create_command_buffer();
-
-  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[0], vlk_mems[0], 0));
-  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[1], vlk_mems[1], 0));
 
   const float k = 67;
 
