@@ -197,6 +197,7 @@ static void vlk_create_buffers() {
   _(vkCreateBuffer(vlk_dev(), &info, NULL, &vlk_bufs[1]));
 }
 
+#define F(x, y) (((x) & (y)) == (y))
 static void vlk_allocate_memories() {
   VkPhysicalDeviceMemoryProperties props;
   vkGetPhysicalDeviceMemoryProperties(vlk_pd, &props);
@@ -204,8 +205,8 @@ static void vlk_allocate_memories() {
   int local = -1, host = -1;
   for (int i = 0; i < props.memoryTypeCount; i++) {
     VkMemoryPropertyFlags flags = props.memoryTypes[i].propertyFlags;
-    if (local == -1 && (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) local = i;
-    if (host == -1 && (flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) host = i;
+    if (local == -1 && F(flags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) local = i;
+    if (host == -1 && F(flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) host = i;
   }
   assert(local >= 0);
   assert(host >= 0);
