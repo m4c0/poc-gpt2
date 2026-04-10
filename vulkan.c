@@ -9,13 +9,13 @@
 
 #define _(X) assert(VK_SUCCESS == (X));
 
-VkBuffer vlk_bufs[1];
+VkBuffer vlk_bufs[2];
 VkCommandBuffer vlk_cb;
 VkCommandPool vlk_cpool;
 VkDescriptorPool vlk_dpools[1];
 VkDescriptorSet vlk_dsets[1];
 VkDescriptorSetLayout vlk_dsls[1];
-VkDeviceMemory vlk_mem;
+VkDeviceMemory vlk_mems[2];
 VkPhysicalDevice vlk_pd;
 VkPipeline vlk_ppls[1];
 VkPipelineLayout vlk_pls[1];
@@ -112,15 +112,21 @@ static VkShaderModule vlk_create_shader_module() {
 }
 
 static void vlk_create_descriptor_set_layouts() {
-  VkDescriptorSetLayoutBinding bi = {
+  VkDescriptorSetLayoutBinding bis[] = {{
+    .binding = 0,
     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     .descriptorCount = 1,
     .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-  };
+  }, {
+    .binding = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+  }};
   VkDescriptorSetLayoutCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-    .bindingCount = 1,
-    .pBindings = &bi,
+    .bindingCount = 2,
+    .pBindings = bis,
   };
   _(vkCreateDescriptorSetLayout(vlk_dev(), &info, NULL, vlk_dsls));
 }
@@ -128,7 +134,7 @@ static void vlk_create_descriptor_set_layouts() {
 static void vlk_create_descriptor_pool() {
   VkDescriptorPoolSize pszs[1] = {{
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 1,
+    .descriptorCount = 2,
   }};
   VkDescriptorPoolCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -137,6 +143,16 @@ static void vlk_create_descriptor_pool() {
     .pPoolSizes = pszs,
   };
   _(vkCreateDescriptorPool(vlk_dev(), &info, NULL, vlk_dpools));
+}
+
+static void vlk_allocate_descriptor_set() {
+  VkDescriptorSetAllocateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+    .descriptorPool = vlk_dpools[0],
+    .descriptorSetCount = 1,
+    .pSetLayouts = vlk_dsls,
+  };
+  _(vkAllocateDescriptorSets(vlk_dev(), &info, vlk_dsets));
 }
 
 static void vlk_create_pipeline_layouts() {
@@ -165,31 +181,34 @@ static void vlk_create_pipelines() {
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
 }
 
-static void vlk_allocate_descriptor_set() {
-  VkDescriptorSetAllocateInfo info = {
-    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-    .descriptorPool = vlk_dpools[0],
-    .descriptorSetCount = 1,
-    .pSetLayouts = vlk_dsls,
-  };
-  _(vkAllocateDescriptorSets(vlk_dev(), &info, vlk_dsets));
-}
-
 static void vlk_create_buffers() {
   VkBufferCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-    .size = 16,
-    .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    .size = sizeof(float),
+    .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
   };
   _(vkCreateBuffer(vlk_dev(), &info, NULL, &vlk_bufs[0]));
+
+  info = (VkBufferCreateInfo) {
+    .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+    .size = sizeof(float),
+    .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  };
+  _(vkCreateBuffer(vlk_dev(), &info, NULL, &vlk_bufs[1]));
 }
 
-static void vlk_allocate_memory() {
+static void vlk_allocate_memories() {
   VkMemoryAllocateInfo info = {
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-    .allocationSize = 16,
+    .allocationSize = sizeof(float),
   };
-  _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mem));
+  _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[0]));
+
+  info = (VkMemoryAllocateInfo) {
+    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+    .allocationSize = sizeof(float),
+  };
+  _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[1]));
 }
 
 static void vlk_create_command_pool() {
@@ -239,13 +258,17 @@ int main() {
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
   vlk_create_buffers();
-  vlk_allocate_memory();
+  vlk_allocate_memories();
   vlk_create_command_pool();
   vlk_create_command_buffer();
 
-  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[0], vlk_mem, 0));
+  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[0], vlk_mems[0], 0));
+  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[1], vlk_mems[1], 0));
+
+  const float k = 67;
 
   vlk_begin_command_buffer();
+  vkCmdUpdateBuffer(vlk_cb, vlk_bufs[0], 0, sizeof(float), &k);
   vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
   vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dsets, 0, NULL);
   vkCmdDispatch(vlk_cb, 1, 1, 1);
@@ -257,8 +280,8 @@ int main() {
   for (int i = 0; i < 1; i++) vkDestroyDescriptorPool(vlk_dev(), vlk_dpools[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
-  for (int i = 0; i < 1; i++) vkDestroyBuffer(vlk_dev(), vlk_bufs[i], NULL);
-  for (int i = 0; i < 1; i++) vkFreeMemory(vlk_dev(), vlk_mem, NULL);
+  for (int i = 0; i < 2; i++) vkDestroyBuffer(vlk_dev(), vlk_bufs[i], NULL);
+  for (int i = 0; i < 2; i++) vkFreeMemory(vlk_dev(), vlk_mems[i], NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
   vkDestroyDevice(vlk_dev(), NULL);
   vkDestroyInstance(volkGetLoadedInstance(), NULL);

@@ -1,9 +1,12 @@
 #version 450
 
-layout(set=0, binding=0) buffer in0 {
+layout(binding=0) readonly buffer in0 {
   float a[];
+};
+layout(binding=1) buffer in1 {
+  float b[];
 };
 
 void main() {
-  a[gl_GlobalInvocationID.x] = 1;
+  b[gl_GlobalInvocationID.x] = 2 + a[gl_GlobalInvocationID.x];
 }
