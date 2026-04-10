@@ -153,6 +153,25 @@ static void vlk_allocate_descriptor_set() {
     .pSetLayouts = vlk_dsls,
   };
   _(vkAllocateDescriptorSets(vlk_dev(), &info, vlk_dsets));
+
+  VkDescriptorBufferInfo b0 = { vlk_bufs[0], 0, VK_WHOLE_SIZE };
+  VkDescriptorBufferInfo b1 = { vlk_bufs[1], 0, VK_WHOLE_SIZE };
+  VkWriteDescriptorSet wr[] = {{
+    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    .dstSet = vlk_dsets[0],
+    .dstBinding = 0,
+    .descriptorCount = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .pBufferInfo = &b0,
+  }, {
+    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    .dstSet = vlk_dsets[0],
+    .dstBinding = 1,
+    .descriptorCount = 1,
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .pBufferInfo = &b1,
+  }};
+  vkUpdateDescriptorSets(vlk_dev(), 2, wr, 0, NULL);
 }
 
 static void vlk_create_pipeline_layouts() {
@@ -269,13 +288,13 @@ int main() {
   vlk_create_instance();
   vlk_find_physical_device();
   vlk_create_device();
+  vlk_create_buffers();
+  vlk_allocate_memories();
   vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
   vlk_allocate_descriptor_set();
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
-  vlk_create_buffers();
-  vlk_allocate_memories();
   vlk_create_command_pool();
   vlk_create_command_buffer();
 
