@@ -12,6 +12,8 @@
 VkBuffer vlk_bufs[1];
 VkCommandBuffer vlk_cb;
 VkCommandPool vlk_cpool;
+VkDescriptorPool vlk_dpools[1];
+VkDescriptorSet vlk_dsets[1];
 VkDescriptorSetLayout vlk_dsls[1];
 VkDeviceMemory vlk_mem;
 VkPhysicalDevice vlk_pd;
@@ -116,6 +118,18 @@ static void vlk_create_descriptor_set_layouts() {
   _(vkCreateDescriptorSetLayout(vlk_dev(), &info, NULL, vlk_dsls));
 }
 
+static void vlk_create_descriptor_pool() {
+  VkDescriptorPoolSize pszs[1] = {{
+  }};
+  VkDescriptorPoolCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    .maxSets = 1,
+    .poolSizeCount = 0,
+    .pPoolSizes = pszs,
+  };
+  _(vkCreateDescriptorPool(vlk_dev(), &info, NULL, vlk_dpools));
+}
+
 static void vlk_create_pipeline_layouts() {
   VkPipelineLayoutCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -200,6 +214,7 @@ int main() {
   vlk_create_instance();
   vlk_find_physical_device();
   vlk_create_device();
+  vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
@@ -218,6 +233,7 @@ int main() {
   vkDeviceWaitIdle(vlk_dev());
 
   for (int i = 0; i < 1; i++) vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsls[i], NULL);
+  for (int i = 0; i < 1; i++) vkDestroyDescriptorPool(vlk_dev(), vlk_dpools[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyBuffer(vlk_dev(), vlk_bufs[i], NULL);
