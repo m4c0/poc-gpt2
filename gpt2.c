@@ -635,24 +635,25 @@ static void vlk_create_pipelines() {
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
 }
 
-static void vlk_create_buffers() {
-  VkBufferCreateInfo info = {
+static void vlk_bound_buffer(int mti, int idx, int size) {
+  VkBufferCreateInfo buf = {
     .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-    .size = sizeof(float),
+    .size = sizeof(float) * size,
     .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
   };
-  _(vkCreateBuffer(vlk_dev(), &info, NULL, &vlk_bufs[0]));
+  _(vkCreateBuffer(vlk_dev(), &buf, NULL, &vlk_bufs[idx]));
 
-  info = (VkBufferCreateInfo) {
-    .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-    .size = sizeof(float),
-    .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  VkMemoryAllocateInfo mem = {
+    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+    .allocationSize = sizeof(float) * size,
+    .memoryTypeIndex = mti,
   };
-  _(vkCreateBuffer(vlk_dev(), &info, NULL, &vlk_bufs[1]));
+  _(vkAllocateMemory(vlk_dev(), &mem, NULL, &vlk_mems[idx]));
+  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[idx], vlk_mems[idx], 0));
 }
 
 #define F(x, y) (((x) & (y)) == (y))
-static void vlk_allocate_memories() {
+static void vlk_create_buffers() {
   VkPhysicalDeviceMemoryProperties props;
   vkGetPhysicalDeviceMemoryProperties(vlk_pd, &props);
 
@@ -665,21 +666,8 @@ static void vlk_allocate_memories() {
   assert(local >= 0);
   assert(host >= 0);
 
-  VkMemoryAllocateInfo info = {
-    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-    .allocationSize = sizeof(float),
-    .memoryTypeIndex = local,
-  };
-  _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[0]));
-  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[0], vlk_mems[0], 0));
-
-  info = (VkMemoryAllocateInfo) {
-    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-    .allocationSize = sizeof(float),
-    .memoryTypeIndex = host,
-  };
-  _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[1]));
-  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[1], vlk_mems[1], 0));
+  vlk_bound_buffer(local, 0, 768 * 2304);
+  vlk_bound_buffer(local, 1, 2304);
 }
 
 static void vlk_create_command_pool() {
@@ -724,7 +712,6 @@ static void vlk_init() {
   vlk_find_physical_device();
   vlk_create_device();
   vlk_create_buffers();
-  vlk_allocate_memories();
   vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
   vlk_allocate_descriptor_set();
@@ -746,6 +733,14 @@ static void vlk_deinit() {
 }
 
 //}}}
+
+static void load_tensor(unsigned idx, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+  unsigned sz = s0 * (s1 ? s1 : 1) * (s2 ? s2 : 1) * (s3 ? s3 : 1);
+  void * ptr;
+  _(vkMapMemory(vlk_dev(), vlk_mems[idx], 0, sz * sizeof(float), 0, &ptr));
+  sft_get(name, ptr, s0, s1, s2, s3);
+  vkUnmapMemory(vlk_dev(), vlk_mems[idx]);
+}
 
 int main() {
   byt_init();
@@ -776,33 +771,20 @@ int main() {
   for (int i = 0; i < 768; i++) var += (x[i] - mean) * (x[i] - mean);
   var /= 768;
 
-  float y[256];
+  float y[768];
   for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
 
   // Attention Layer 1
 
   // attn.c_attn contains all data for Q, followed by K, followed by V
   // Then each of QKV is split into heads (12)
-  float * caw = malloc(4 * 768 * 2304);
-  sft_get("h.0.attn.c_attn.weight", caw, 768, 2304, 0, 0);
-  float * cab = malloc(4 * 2304);
-  sft_get("h.0.attn.c_attn.bias", cab, 2304, 0, 0, 0);
-
-  const float k = 67;
+  load_tensor(0, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
+  load_tensor(1, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vlk_begin_command_buffer();
-  vkCmdUpdateBuffer(vlk_cb, vlk_bufs[0], 0, sizeof(float), &k);
-  vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
-  vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dsets, 0, NULL);
-  vkCmdDispatch(vlk_cb, 1, 1, 1);
   vlk_end_command_buffer();
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
-
-  float * mem;
-  _(vkMapMemory(vlk_dev(), vlk_mems[1], 0, sizeof(float), 0, (void **)&mem));
-  printf("output: %f\n", *mem);
-  vkUnmapMemory(vlk_dev(), vlk_mems[1]);
 
   vlk_deinit();
 }
