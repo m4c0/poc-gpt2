@@ -9,18 +9,18 @@
 
 #define _(X) assert(VK_SUCCESS == (X));
 
-VkBuffer vlk_bufs[2];
-VkCommandBuffer vlk_cb;
-VkCommandPool vlk_cpool;
-VkDescriptorPool vlk_dpools[1];
-VkDescriptorSet vlk_dsets[1];
-VkDescriptorSetLayout vlk_dsls[1];
-VkDeviceMemory vlk_mems[2];
-VkPhysicalDevice vlk_pd;
-VkPipeline vlk_ppls[1];
-VkPipelineLayout vlk_pls[1];
-VkQueue vlk_q;
-unsigned vlk_qf;
+static VkBuffer vlk_bufs[2];
+static VkCommandBuffer vlk_cb;
+static VkCommandPool vlk_cpool;
+static VkDescriptorPool vlk_dpools[1];
+static VkDescriptorSet vlk_dsets[1];
+static VkDescriptorSetLayout vlk_dsls[1];
+static VkDeviceMemory vlk_mems[2];
+static VkPhysicalDevice vlk_pd;
+static VkPipeline vlk_ppls[1];
+static VkPipelineLayout vlk_pls[1];
+static VkQueue vlk_q;
+static unsigned vlk_qf;
 
 static inline VkDevice vlk_dev() { return volkGetLoadedDevice(); }
 
@@ -198,15 +198,29 @@ static void vlk_create_buffers() {
 }
 
 static void vlk_allocate_memories() {
+  VkPhysicalDeviceMemoryProperties props;
+  vkGetPhysicalDeviceMemoryProperties(vlk_pd, &props);
+
+  int local = -1, host = -1;
+  for (int i = 0; i < props.memoryTypeCount; i++) {
+    VkMemoryPropertyFlags flags = props.memoryTypes[i].propertyFlags;
+    if (local == -1 && (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) local = i;
+    if (host == -1 && (flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) host = i;
+  }
+  assert(local >= 0);
+  assert(host >= 0);
+
   VkMemoryAllocateInfo info = {
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
     .allocationSize = sizeof(float),
+    .memoryTypeIndex = local,
   };
   _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[0]));
 
   info = (VkMemoryAllocateInfo) {
     .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
     .allocationSize = sizeof(float),
+    .memoryTypeIndex = host,
   };
   _(vkAllocateMemory(vlk_dev(), &info, NULL, &vlk_mems[1]));
 }
@@ -275,6 +289,11 @@ int main() {
   vlk_end_command_buffer();
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
+
+  float * mem;
+  _(vkMapMemory(vlk_dev(), vlk_mems[1], 0, sizeof(float), 0, (void **)&mem));
+  printf("output: %f\n", *mem);
+  vkUnmapMemory(vlk_dev(), vlk_mems[1]);
 
   for (int i = 0; i < 1; i++) vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyDescriptorPool(vlk_dev(), vlk_dpools[i], NULL);
