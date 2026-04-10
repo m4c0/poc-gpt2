@@ -247,6 +247,7 @@ int main() {
 
   vlk_begin_command_buffer();
   vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
+  vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dsets, 0, NULL);
   vkCmdDispatch(vlk_cb, 1, 1, 1);
   vlk_end_command_buffer();
   vlk_submit();
