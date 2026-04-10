@@ -112,19 +112,28 @@ static VkShaderModule vlk_create_shader_module() {
 }
 
 static void vlk_create_descriptor_set_layouts() {
+  VkDescriptorSetLayoutBinding bi = {
+    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+  };
   VkDescriptorSetLayoutCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+    .bindingCount = 1,
+    .pBindings = &bi,
   };
   _(vkCreateDescriptorSetLayout(vlk_dev(), &info, NULL, vlk_dsls));
 }
 
 static void vlk_create_descriptor_pool() {
   VkDescriptorPoolSize pszs[1] = {{
+    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    .descriptorCount = 1,
   }};
   VkDescriptorPoolCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
     .maxSets = 1,
-    .poolSizeCount = 0,
+    .poolSizeCount = 1,
     .pPoolSizes = pszs,
   };
   _(vkCreateDescriptorPool(vlk_dev(), &info, NULL, vlk_dpools));
@@ -154,6 +163,16 @@ static void vlk_create_pipelines() {
 
   _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, vlk_ppls));
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
+}
+
+static void vlk_allocate_descriptor_set() {
+  VkDescriptorSetAllocateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+    .descriptorPool = vlk_dpools[0],
+    .descriptorSetCount = 1,
+    .pSetLayouts = vlk_dsls,
+  };
+  _(vkAllocateDescriptorSets(vlk_dev(), &info, vlk_dsets));
 }
 
 static void vlk_create_buffers() {
@@ -216,6 +235,7 @@ int main() {
   vlk_create_device();
   vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
+  vlk_allocate_descriptor_set();
   vlk_create_pipeline_layouts();
   vlk_create_pipelines();
   vlk_create_buffers();
