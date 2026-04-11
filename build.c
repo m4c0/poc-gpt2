@@ -66,7 +66,9 @@ int main(int argc, char ** argv) {
   if (shader("vulkan.comp"    )) return 1;
   if (shader("gpt2-cattn.comp")) return 1;
   if (shader("gpt2-embed.comp")) return 1;
+  if (shader("gpt2-lmean.comp")) return 1;
   if (shader("gpt2-lnorm.comp")) return 1;
+  if (shader("gpt2-lvari.comp")) return 1;
 
   { char * args[] = { EXE(CC), "-Wall", "-g", "-o", EXE("vocab"), "vocab.c", 0 };
     if (run(args)) return 1; }
