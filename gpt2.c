@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -449,8 +450,7 @@ static VkCommandPool vlk_cpool;
 static VkDescriptorPool vlk_dpool;
 static VkDescriptorSetLayout vlk_dsl;
 static VkPhysicalDevice vlk_pd;
-static VkPipeline vlk_ppls[1];
-static VkPipelineLayout vlk_pls[1];
+static VkPipelineLayout vlk_pls[8];
 static VkQueue vlk_q;
 static unsigned vlk_qf;
 
@@ -521,8 +521,8 @@ static void vlk_create_device() {
   vkGetDeviceQueue(res, vlk_qf, 0, &vlk_q);
 }
 
-static VkShaderModule vlk_create_shader_module() {
-  FILE * f = fopen("vulkan.comp.spv", "rb");
+static VkShaderModule vlk_create_shader_module(const char * name) {
+  FILE * f = fopen(name, "rb");
   assert(f);
   assert(0 == fseek(f, 0, SEEK_END));
   long sz = ftell(f);
@@ -575,15 +575,21 @@ static void vlk_create_descriptor_pool() {
 }
 
 static void vlk_create_pipeline_layouts() {
-  VkPipelineLayoutCreateInfo info = {
-    .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-    .setLayoutCount = 1,
-    .pSetLayouts = &vlk_dsl,
-  };
-  _(vkCreatePipelineLayout(vlk_dev(), &info, NULL, vlk_pls));
+  VkDescriptorSetLayout dsls[8];
+  for (int i = 0; i < 8; i++) {
+    dsls[i] = vlk_dsl;
+    VkPipelineLayoutCreateInfo info = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = i,
+      .pSetLayouts = dsls,
+    };
+    _(vkCreatePipelineLayout(vlk_dev(), &info, NULL, vlk_pls + i));
+  }
 }
-static void vlk_create_pipelines() {
-  VkShaderModule mod = vlk_create_shader_module();
+static VkPipeline vlk_create_pipeline(const char * name, unsigned set_count) {
+  assert(set_count < 8);
+
+  VkShaderModule mod = vlk_create_shader_module(name);
 
   VkComputePipelineCreateInfo infos[] = {{
     .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
@@ -596,8 +602,10 @@ static void vlk_create_pipelines() {
     .layout = vlk_pls[0],
   }};
 
-  _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, vlk_ppls));
+  VkPipeline res;
+  _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, &res));
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
+  return res;
 }
 
 typedef struct vlk_buffer {
@@ -710,13 +718,11 @@ static void vlk_init() {
   vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
   vlk_create_pipeline_layouts();
-  vlk_create_pipelines();
   vlk_create_command_pool();
   vlk_create_command_buffer();
 }
 static void vlk_deinit() {
-  for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
-  for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
+  for (int i = 0; i < 8; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsl, NULL);
   vkDestroyDescriptorPool(vlk_dev(), vlk_dpool, NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
@@ -733,6 +739,17 @@ static void load_tensor(vlk_buffer_t b, const char * name, unsigned s0, unsigned
   vkUnmapMemory(vlk_dev(), b.mem);
 }
 
+static void bind(VkCommandBuffer cb, VkPipeline ppl, int n, ...) {
+  va_list args;
+  va_start(args, n);
+  VkDescriptorSet dsets[8];
+  for (int i = 0; i < n; i++) dsets[i] = va_arg(args, vlk_buffer_t).dset;
+  va_end(args);
+
+  vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl);
+  vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[n], 0, n, dsets, 0, NULL);
+}
+
 int main() {
   byt_init();
   bpe_init();
@@ -743,6 +760,7 @@ int main() {
   vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
+  VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 3);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
@@ -782,14 +800,14 @@ int main() {
 
   // vkCmdUpdateBuffer(vlk_cb, vlk_bufs[2], 0, 768 * sizeof(float), y);
   //vkCmdFillBuffer(vlk_cb, vlk_bufs[);
-  vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
-  // vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dset, 0, NULL);
+  bind(vlk_cb, p_cattn, 3, b_cattn_w, b_cattn_b, b_y);
   vkCmdDispatch(vlk_cb, 1, 1, 1);
 
   vlk_end_command_buffer();
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
 
+  vkDestroyPipeline(vlk_dev(), p_cattn, NULL);
   vlk_destroy_buffer(b_y);
   vlk_destroy_buffer(b_cattn_w);
   vlk_destroy_buffer(b_cattn_b);
