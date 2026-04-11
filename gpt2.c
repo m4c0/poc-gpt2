@@ -595,6 +595,9 @@ static void vlk_create_pipeline_layouts() {
     _(vkCreatePipelineLayout(vlk_dev(), &info, NULL, vlk_pls + i));
   }
 }
+
+static VkPipeline vlk_ppl_cache[128];
+static unsigned vlk_ppl_cache_idx = 0;
 static VkPipeline vlk_create_pipeline(const char * name, unsigned set_count) {
   assert(set_count < 8);
 
@@ -614,6 +617,7 @@ static VkPipeline vlk_create_pipeline(const char * name, unsigned set_count) {
   VkPipeline res;
   _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, &res));
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
+  vlk_ppl_cache[vlk_ppl_cache_idx++] = res;
   return res;
 }
 
@@ -737,6 +741,7 @@ static void vlk_init() {
 static void vlk_deinit() {
   for (int i = 0; i < 8; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < vlk_buf_cache_idx; i++) vlk_destroy_buffer(vlk_buf_cache[i]);
+  for (int i = 0; i < vlk_ppl_cache_idx; i++) vkDestroyPipeline(vlk_dev(), vlk_ppl_cache[i], NULL);
   vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsl, NULL);
   vkDestroyDescriptorPool(vlk_dev(), vlk_dpool, NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
@@ -859,7 +864,5 @@ int main() {
   //load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
   //load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
-  vkDestroyPipeline(vlk_dev(), p_embed, NULL);
-  //vkDestroyPipeline(vlk_dev(), p_cattn, NULL);
   vlk_deinit();
 }
