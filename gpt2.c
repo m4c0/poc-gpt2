@@ -444,9 +444,6 @@ void sft_get(const char * tensor, float * data, unsigned s0, unsigned s1, unsign
 
 //{{{ [vlk] Vulkan
 
-static VkBuffer vlk_bufs[3];
-static VkDeviceMemory vlk_mems[3];
-
 static VkCommandBuffer vlk_cb;
 static VkCommandPool vlk_cpool;
 static VkDescriptorPool vlk_dpools[1];
@@ -461,9 +458,6 @@ static unsigned vlk_qf;
 static inline VkDevice vlk_dev() { return volkGetLoadedDevice(); }
 
 static void vlk_create_instance() {
-  const char * ext[] = {
-    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
-  };
   VkApplicationInfo app = {
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
     .apiVersion = VK_API_VERSION_1_2,
@@ -587,32 +581,32 @@ static void vlk_create_descriptor_pool() {
 }
 
 static void vlk_allocate_descriptor_set() {
-  VkDescriptorSetAllocateInfo info = {
-    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-    .descriptorPool = vlk_dpools[0],
-    .descriptorSetCount = 1,
-    .pSetLayouts = vlk_dsls,
-  };
-  _(vkAllocateDescriptorSets(vlk_dev(), &info, vlk_dsets));
+  // VkDescriptorSetAllocateInfo info = {
+  //   .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+  //   .descriptorPool = vlk_dpools[0],
+  //   .descriptorSetCount = 1,
+  //   .pSetLayouts = vlk_dsls,
+  // };
+  // _(vkAllocateDescriptorSets(vlk_dev(), &info, vlk_dsets));
 
-  VkDescriptorBufferInfo b0 = { vlk_bufs[0], 0, VK_WHOLE_SIZE };
-  VkDescriptorBufferInfo b1 = { vlk_bufs[1], 0, VK_WHOLE_SIZE };
-  VkWriteDescriptorSet wr[] = {{
-    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-    .dstSet = vlk_dsets[0],
-    .dstBinding = 0,
-    .descriptorCount = 1,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .pBufferInfo = &b0,
-  }, {
-    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-    .dstSet = vlk_dsets[0],
-    .dstBinding = 1,
-    .descriptorCount = 1,
-    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .pBufferInfo = &b1,
-  }};
-  vkUpdateDescriptorSets(vlk_dev(), 2, wr, 0, NULL);
+  // VkDescriptorBufferInfo b0 = { vlk_bufs[0], 0, VK_WHOLE_SIZE };
+  // VkDescriptorBufferInfo b1 = { vlk_bufs[1], 0, VK_WHOLE_SIZE };
+  // VkWriteDescriptorSet wr[] = {{
+  //   .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+  //   .dstSet = vlk_dsets[0],
+  //   .dstBinding = 0,
+  //   .descriptorCount = 1,
+  //   .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+  //   .pBufferInfo = &b0,
+  // }, {
+  //   .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+  //   .dstSet = vlk_dsets[0],
+  //   .dstBinding = 1,
+  //   .descriptorCount = 1,
+  //   .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+  //   .pBufferInfo = &b1,
+  // }};
+  // vkUpdateDescriptorSets(vlk_dev(), 2, wr, 0, NULL);
 }
 
 static void vlk_create_pipeline_layouts() {
@@ -641,40 +635,49 @@ static void vlk_create_pipelines() {
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
 }
 
-static void vlk_bound_buffer(int mti, int idx, int size) {
-  VkBufferCreateInfo buf = {
-    .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-    .size = sizeof(float) * size,
-    .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-  };
-  _(vkCreateBuffer(vlk_dev(), &buf, NULL, &vlk_bufs[idx]));
-
-  VkMemoryAllocateInfo mem = {
-    .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-    .allocationSize = sizeof(float) * size,
-    .memoryTypeIndex = mti,
-  };
-  _(vkAllocateMemory(vlk_dev(), &mem, NULL, &vlk_mems[idx]));
-  _(vkBindBufferMemory(vlk_dev(), vlk_bufs[idx], vlk_mems[idx], 0));
-}
-
-#define F(x, y) (((x) & (y)) == (y))
-static void vlk_create_buffers() {
+typedef struct vlk_buffer {
+  VkBuffer buf;
+  VkDeviceMemory mem;
+} vlk_buffer_t;
+static vlk_buffer_t vlk_create_buffer(VkDeviceSize sz, VkMemoryPropertyFlags mem_flags, VkBufferUsageFlags ex_flags) {
   VkPhysicalDeviceMemoryProperties props;
   vkGetPhysicalDeviceMemoryProperties(vlk_pd, &props);
 
-  int local = -1, host = -1;
   for (int i = 0; i < props.memoryTypeCount; i++) {
     VkMemoryPropertyFlags flags = props.memoryTypes[i].propertyFlags;
-    if (local == -1 && F(flags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) local = i;
-    if (host == -1 && F(flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) host = i;
-  }
-  assert(local >= 0);
-  assert(host >= 0);
+    if ((flags & mem_flags) != mem_flags) continue;
 
-  vlk_bound_buffer(local, 0, 768 * 2304);
-  vlk_bound_buffer(local, 1, 2304);
-  vlk_bound_buffer(local, 2, 768);
+    vlk_buffer_t res;
+
+    VkBufferCreateInfo buf = {
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = sz * sizeof(float),
+      .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | ex_flags,
+    };
+    _(vkCreateBuffer(vlk_dev(), &buf, NULL, &res.buf));
+
+    VkMemoryAllocateInfo mem = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .allocationSize = sz * sizeof(float),
+      .memoryTypeIndex = i,
+    };
+    _(vkAllocateMemory(vlk_dev(), &mem, NULL, &res.mem));
+    _(vkBindBufferMemory(vlk_dev(), res.buf, res.mem, 0));
+    return res;
+  }
+  unreachable("could not find host memory with Vulkan");
+}
+static vlk_buffer_t vlk_create_host_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
+  return vlk_create_buffer(sz,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+      ex_flags);
+}
+static vlk_buffer_t vlk_create_local_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
+  return vlk_create_buffer(sz, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ex_flags);
+}
+static void vlk_destroy_buffer(vlk_buffer_t b) {
+  vkDestroyBuffer(vlk_dev(), b.buf, NULL);
+  vkFreeMemory(vlk_dev(), b.mem, NULL);
 }
 
 static void vlk_create_command_pool() {
@@ -718,7 +721,6 @@ static void vlk_init() {
   vlk_create_instance();
   vlk_find_physical_device();
   vlk_create_device();
-  vlk_create_buffers();
   vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
   vlk_allocate_descriptor_set();
@@ -732,8 +734,6 @@ static void vlk_deinit() {
   for (int i = 0; i < 1; i++) vkDestroyDescriptorPool(vlk_dev(), vlk_dpools[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < 1; i++) vkDestroyPipeline(vlk_dev(), vlk_ppls[i], NULL);
-  for (int i = 0; i < 2; i++) vkDestroyBuffer(vlk_dev(), vlk_bufs[i], NULL);
-  for (int i = 0; i < 2; i++) vkFreeMemory(vlk_dev(), vlk_mems[i], NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
   vkDestroyDevice(vlk_dev(), NULL);
   vkDestroyInstance(volkGetLoadedInstance(), NULL);
@@ -741,13 +741,13 @@ static void vlk_deinit() {
 
 //}}}
 
-static void load_tensor(unsigned idx, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
-  unsigned sz = s0 * (s1 ? s1 : 1) * (s2 ? s2 : 1) * (s3 ? s3 : 1);
-  void * ptr;
-  _(vkMapMemory(vlk_dev(), vlk_mems[idx], 0, sz * sizeof(float), 0, &ptr));
-  sft_get(name, ptr, s0, s1, s2, s3);
-  vkUnmapMemory(vlk_dev(), vlk_mems[idx]);
-}
+// static void load_tensor(unsigned idx, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+//   unsigned sz = s0 * (s1 ? s1 : 1) * (s2 ? s2 : 1) * (s3 ? s3 : 1);
+//   void * ptr;
+//   _(vkMapMemory(vlk_dev(), vlk_mems[idx], 0, sz * sizeof(float), 0, &ptr));
+//   sft_get(name, ptr, s0, s1, s2, s3);
+//   vkUnmapMemory(vlk_dev(), vlk_mems[idx]);
+// }
 
 int main() {
   byt_init();
@@ -755,6 +755,10 @@ int main() {
   enc_init();
   sft_init();
   vlk_init();
+
+  vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
+  vlk_buffer_t b_cattn_w = vlk_create_local_buffer(768 * 2304, 0);
+  vlk_buffer_t b_cattn_b = vlk_create_local_buffer(2304, 0);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
@@ -778,19 +782,21 @@ int main() {
   for (int i = 0; i < 768; i++) var += (x[i] - mean) * (x[i] - mean);
   var /= 768;
 
-  float y[768];
+  float * y;
+  _(vkMapMemory(vlk_dev(), b_y.mem, 0, VK_WHOLE_SIZE, 0, (void **)&y));
   for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
+  vkUnmapMemory(vlk_dev(), b_y.mem);
 
   // Attention Layer 1
 
   // attn.c_attn contains all data for Q, followed by K, followed by V
   // Then each of QKV is split into heads (12)
-  load_tensor(0, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
-  load_tensor(1, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
+  // load_tensor(0, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
+  // load_tensor(1, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vlk_begin_command_buffer();
 
-  vkCmdUpdateBuffer(vlk_cb, vlk_bufs[2], 0, 768 * sizeof(float), y);
+  // vkCmdUpdateBuffer(vlk_cb, vlk_bufs[2], 0, 768 * sizeof(float), y);
   //vkCmdFillBuffer(vlk_cb, vlk_bufs[);
   vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
   vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dsets, 0, NULL);
@@ -800,5 +806,8 @@ int main() {
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
 
+  vlk_destroy_buffer(b_y);
+  vlk_destroy_buffer(b_cattn_w);
+  vlk_destroy_buffer(b_cattn_b);
   vlk_deinit();
 }
