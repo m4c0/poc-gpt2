@@ -504,16 +504,26 @@ static void vlk_create_device() {
     .pQueuePriorities = &pri,
     .queueFamilyIndex = vlk_qf,
   };
+
+  VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomics = {0};
+  atomics.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
+  atomics.shaderBufferFloat32AtomicAdd = 1;
+
   VkDeviceCreateInfo info = (VkDeviceCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+    .pNext = &atomics,
     .queueCreateInfoCount = 1,
     .pQueueCreateInfos = &q,
+    .enabledExtensionCount = 1,
+    .ppEnabledExtensionNames = (const char *[]) {
+      "VK_EXT_shader_atomic_float",
+      "VK_KHR_portability_subset"
+    },
   };
 #ifdef __APPLE__
-  const char * ext[1] = { "VK_KHR_portability_subset" };
-  info.ppEnabledExtensionNames = ext;
-  info.enabledExtensionCount = 1;
+  info.enabledExtensionCount = 2;
 #endif
+
   VkDevice res;
   _(vkCreateDevice(vlk_pd, &info, NULL, &res));
   volkLoadDevice(res);
@@ -760,7 +770,9 @@ int main() {
   vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
-  VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 3);
+  vlk_buffer_t b_cattn_out = vlk_create_host_buffer(2304, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+  VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
@@ -792,16 +804,16 @@ int main() {
   // Attention Layer 1
 
   // attn.c_attn contains all data for Q, followed by K, followed by V
-  // Then each of QKV is split into heads (12)
+  // Then each of QKV is split into heads (12). Or: split 2304 into 3,
+  // then each 768 into 12 to be 64 per head
   load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vlk_begin_command_buffer();
 
-  // vkCmdUpdateBuffer(vlk_cb, vlk_bufs[2], 0, 768 * sizeof(float), y);
-  //vkCmdFillBuffer(vlk_cb, vlk_bufs[);
-  bind(vlk_cb, p_cattn, 3, b_cattn_w, b_cattn_b, b_y);
-  vkCmdDispatch(vlk_cb, 1, 1, 1);
+  vkCmdFillBuffer(vlk_cb, b_cattn_out.buf, 0, VK_WHOLE_SIZE, 0);
+  bind(vlk_cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_y, b_cattn_out);
+  vkCmdDispatch(vlk_cb, 1, 768, 2304);
 
   vlk_end_command_buffer();
   vlk_submit();
@@ -811,5 +823,6 @@ int main() {
   vlk_destroy_buffer(b_y);
   vlk_destroy_buffer(b_cattn_w);
   vlk_destroy_buffer(b_cattn_b);
+  vlk_destroy_buffer(b_cattn_out);
   vlk_deinit();
 }

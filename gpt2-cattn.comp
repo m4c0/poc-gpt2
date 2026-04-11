@@ -1,9 +1,15 @@
 #version 450
+#extension GL_EXT_shader_atomic_float : require
 
 layout(set = 0, binding=0) readonly buffer b0 { float w[]; };
 layout(set = 1, binding=0) readonly buffer b1 { float b[]; };
-layout(set = 2, binding=0)          buffer b2 { float o[]; };
+layout(set = 2, binding=0) readonly buffer b2 { float x[]; };
+layout(set = 3, binding=0)          buffer b3 { float y[]; };
 
 void main() {
+  const uvec3 gid = gl_GlobalInvocationID;
+  const uint o = gid.x * gl_NumWorkGroups.z + gid.z;
+  if (gid.y == 0) atomicAdd(y[o], b[gid.z]);
+
   //b[gl_GlobalInvocationID.x] = 2 + a[gl_GlobalInvocationID.x];
 }
