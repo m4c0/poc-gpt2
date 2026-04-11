@@ -445,7 +445,6 @@ void sft_get(const char * tensor, float * data, unsigned s0, unsigned s1, unsign
 
 //{{{ [vlk] Vulkan
 
-static VkCommandBuffer vlk_cb;
 static VkCommandPool vlk_cpool;
 static VkDescriptorPool vlk_dpool;
 static VkDescriptorSetLayout vlk_dsl;
@@ -691,29 +690,31 @@ static void vlk_create_command_pool() {
   _(vkCreateCommandPool(vlk_dev(), &info, NULL, &vlk_cpool));
 }
 
-static void vlk_create_command_buffer() {
+static VkCommandBuffer vlk_allocate_command_buffer() {
   VkCommandBufferAllocateInfo info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
     .commandPool = vlk_cpool,
     .commandBufferCount = 1,
   };
-  _(vkAllocateCommandBuffers(vlk_dev(), &info, &vlk_cb));
+  VkCommandBuffer cb;
+  _(vkAllocateCommandBuffers(vlk_dev(), &info, &cb));
+  return cb;
 }
 
-static void vlk_begin_command_buffer() {
+static void vlk_begin_command_buffer(VkCommandBuffer cb) {
   VkCommandBufferBeginInfo info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
   };
-  vkBeginCommandBuffer(vlk_cb, &info);
+  vkBeginCommandBuffer(cb, &info);
 }
-static void vlk_end_command_buffer() {
-  vkEndCommandBuffer(vlk_cb);
+static void vlk_end_command_buffer(VkCommandBuffer cb) {
+  vkEndCommandBuffer(cb);
 }
 
-static void vlk_submit() {
+static void vlk_submit(VkCommandBuffer cb) {
   VkSubmitInfo info = {
     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-    .pCommandBuffers = &vlk_cb,
+    .pCommandBuffers = &cb,
     .commandBufferCount = 1,
   };
   _(vkQueueSubmit(vlk_q, 1, &info, NULL));
@@ -729,7 +730,6 @@ static void vlk_init() {
   vlk_create_descriptor_set_layouts();
   vlk_create_pipeline_layouts();
   vlk_create_command_pool();
-  vlk_create_command_buffer();
 }
 static void vlk_deinit() {
   for (int i = 0; i < 8; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
@@ -749,6 +749,17 @@ static void load_tensor(vlk_buffer_t b, const char * name, unsigned s0, unsigned
   vkUnmapMemory(vlk_dev(), b.mem);
 }
 
+static VkCommandBuffer alloc() {
+  VkCommandBuffer cb = vlk_allocate_command_buffer();
+  vlk_begin_command_buffer(cb);
+  return cb;
+}
+static void submit(VkCommandBuffer cb) {
+  vlk_end_command_buffer(cb);
+  vlk_submit(cb);
+  vkDeviceWaitIdle(vlk_dev());
+}
+
 static void bind(VkCommandBuffer cb, VkPipeline ppl, int n, ...) {
   va_list args;
   va_start(args, n);
@@ -756,8 +767,8 @@ static void bind(VkCommandBuffer cb, VkPipeline ppl, int n, ...) {
   for (int i = 0; i < n; i++) dsets[i] = va_arg(args, vlk_buffer_t).dset;
   va_end(args);
 
-  vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl);
-  vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[n], 0, n, dsets, 0, NULL);
+  vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl);
+  vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[n], 0, n, dsets, 0, NULL);
 }
 
 int main() {
@@ -772,13 +783,16 @@ int main() {
   vlk_buffer_t b_inp = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
   vlk_buffer_t b_x = vlk_create_host_buffer(1024 * 768, 0);
 
-  vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
-  vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
-  vlk_buffer_t b_cattn_out = vlk_create_host_buffer(2304, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  vlk_buffer_t b_ln1w = vlk_create_host_buffer(768, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+  //vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
+  //vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
+  //vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
+  //vlk_buffer_t b_cattn_out = vlk_create_host_buffer(2304, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
   VkPipeline p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
-  VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
+  //VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
@@ -788,35 +802,23 @@ int main() {
   load_tensor(b_wte, "wte.weight", 50257, 768, 0, 0);
   load_tensor(b_wpe, "wpe.weight", 1024, 768, 0, 0);
 
-  vlk_begin_command_buffer();
+  VkCommandBuffer cb = alloc();
+  vkCmdUpdateBuffer(cb, b_inp.buf, 0, ts.sz * 4, ts.ids);
+  bind(cb, p_embed, 4, b_wte, b_wpe, b_inp, b_x);
+  vkCmdDispatch(cb, ts.sz, 768, 1);
+  submit(cb);
 
-  vkCmdUpdateBuffer(vlk_cb, b_inp.buf, 0, ts.sz * 4, ts.ids);
-  bind(vlk_cb, p_embed, 4, b_wte, b_wpe, b_inp, b_x);
-  vkCmdDispatch(vlk_cb, ts.sz, 768, 1);
-
-  vlk_end_command_buffer();
-  vlk_submit();
-  vkDeviceWaitIdle(vlk_dev());
+  // Transform
  
-  float * x;
-  _(vkMapMemory(vlk_dev(), b_x.mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j]);
-    }
-    printf("... ");
-    for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
-    }
-    printf("\n");
-  }
-  vkUnmapMemory(vlk_dev(), b_x.mem);
+  // Normalisation
 
+  float ln1w[768]; sft_get("h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
+  float ln1b[768]; sft_get("h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
 
-  // Normalisation of Layer 1
-
-  // float ln1w[768]; sft_get("h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
-  // float ln1b[768]; sft_get("h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
+  cb = alloc();
+  vkCmdUpdateBuffer(cb, b_ln1w.buf, 0, 768 * 4, ln1w);
+  vkCmdUpdateBuffer(cb, b_ln1b.buf, 0, 768 * 4, ln1b);
+  submit(cb);
 
   // float mean = 0;
   // for (int i = 0; i < 768; i++) mean += x[i];
@@ -831,23 +833,39 @@ int main() {
   // for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
   // vkUnmapMemory(vlk_dev(), b_y.mem);
 
+  float * x;
+  _(vkMapMemory(vlk_dev(), b_x.mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 3; j++) {
+      printf("%9.6f ", x[i * 768 + j]);
+    }
+    printf("... ");
+    for (int j = 0; j < 3; j++) {
+      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
+    }
+    printf("\n");
+  }
+  vkUnmapMemory(vlk_dev(), b_x.mem);
+
   // Attention Layer 1
 
   // attn.c_attn contains all data for Q, followed by K, followed by V
   // Then each of QKV is split into heads (12). Or: split 2304 into 3,
   // then each 768 into 12 to be 64 per head
-  load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
-  load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
+  //load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
+  //load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vkDestroyPipeline(vlk_dev(), p_embed, NULL);
-  vkDestroyPipeline(vlk_dev(), p_cattn, NULL);
+  //vkDestroyPipeline(vlk_dev(), p_cattn, NULL);
   vlk_destroy_buffer(b_wte);
   vlk_destroy_buffer(b_wpe);
   vlk_destroy_buffer(b_inp);
   vlk_destroy_buffer(b_x);
-  vlk_destroy_buffer(b_y);
-  vlk_destroy_buffer(b_cattn_w);
-  vlk_destroy_buffer(b_cattn_b);
-  vlk_destroy_buffer(b_cattn_out);
+  vlk_destroy_buffer(b_ln1w);
+  vlk_destroy_buffer(b_ln1b);
+  //vlk_destroy_buffer(b_y);
+  //vlk_destroy_buffer(b_cattn_w);
+  //vlk_destroy_buffer(b_cattn_b);
+  //vlk_destroy_buffer(b_cattn_out);
   vlk_deinit();
 }
