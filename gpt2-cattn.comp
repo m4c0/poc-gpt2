@@ -7,9 +7,20 @@ layout(set = 2, binding=0) readonly buffer b2 { float x[]; };
 layout(set = 3, binding=0)          buffer b3 { float y[]; };
 
 void main() {
-  const uvec3 gid = gl_GlobalInvocationID;
-  const uint o = gid.x * gl_NumWorkGroups.z + gid.z;
-  if (gid.y == 0) atomicAdd(y[o], b[gid.z]);
+  uvec2 wp = gl_GlobalInvocationID.zy;
+  uvec2 ws = gl_NumWorkGroups.zy;
+  uint ww = wp.y * ws.x + wp.x;
 
-  //b[gl_GlobalInvocationID.x] = 2 + a[gl_GlobalInvocationID.x];
+  uvec2 xp = gl_GlobalInvocationID.xy;
+  uvec2 xs = gl_NumWorkGroups.xy;
+  uint xx = xp.y * xs.x + xp.x;
+
+  uvec2 yp = gl_GlobalInvocationID.xz;
+  uvec2 ys = gl_NumWorkGroups.xz;
+  uint yy = yp.y * ys.y + yp.y;
+
+  atomicAdd(y[yy], x[xx] * w[ww]);
+  if (gl_GlobalInvocationID.y == 1) {
+    atomicAdd(y[yy], b[gl_GlobalInvocationID.z]);
+  }
 }
