@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
@@ -20,6 +21,7 @@ static sft_tensor_t sft_find(FILE * f, const char * key) {
   assert(fread(&hsz, 8, 1, f));
 
   fscanf(f, "{\"__metadata__\":{\"format\":\"pt\"}");
+  assert(ftell(f) > 8 && "can't read safetensors file data");
   assert(!ferror(f) && !feof(f));
 
   char c;

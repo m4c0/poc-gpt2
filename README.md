@@ -22,5 +22,5 @@ Using `curl`, something like:
 ```bash
 curl -o vocab.bpe https://openaipublic.blob.core.windows.net/gpt-2/models/124M/vocab.bpe
 curl -o encoder.json https://openaipublic.blob.core.windows.net/gpt-2/models/124M/encoder.json
-curl -o model.safetensors https://huggingface.co/openai-community/gpt2/resolve/main/model.safetensors?download=true
+curl -L -o model.safetensors https://huggingface.co/openai-community/gpt2/resolve/main/model.safetensors?download=true
 ```

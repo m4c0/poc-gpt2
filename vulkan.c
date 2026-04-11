@@ -1,6 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <assert.h>
-#include <dlfcn.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define VOLK_IMPLEMENTATION
 #include "volk.h"
