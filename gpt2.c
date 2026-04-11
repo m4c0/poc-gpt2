@@ -622,6 +622,8 @@ typedef struct vlk_buffer {
   VkDeviceMemory mem;
   VkDescriptorSet dset;
 } vlk_buffer_t;
+static vlk_buffer_t vlk_buf_cache[128];
+static unsigned vlk_buf_cache_idx = 0;
 static vlk_buffer_t vlk_create_buffer(VkDeviceSize sz, VkMemoryPropertyFlags mem_flags, VkBufferUsageFlags ex_flags) {
   VkPhysicalDeviceMemoryProperties props;
   vkGetPhysicalDeviceMemoryProperties(vlk_pd, &props);
@@ -666,6 +668,7 @@ static vlk_buffer_t vlk_create_buffer(VkDeviceSize sz, VkMemoryPropertyFlags mem
     }};
     vkUpdateDescriptorSets(vlk_dev(), 1, wr, 0, NULL);
 
+    vlk_buf_cache[vlk_buf_cache_idx++] = res;
     return res;
   }
   unreachable("could not find host memory with Vulkan");
@@ -733,6 +736,7 @@ static void vlk_init() {
 }
 static void vlk_deinit() {
   for (int i = 0; i < 8; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
+  for (int i = 0; i < vlk_buf_cache_idx; i++) vlk_destroy_buffer(vlk_buf_cache[i]);
   vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsl, NULL);
   vkDestroyDescriptorPool(vlk_dev(), vlk_dpool, NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
@@ -857,15 +861,5 @@ int main() {
 
   vkDestroyPipeline(vlk_dev(), p_embed, NULL);
   //vkDestroyPipeline(vlk_dev(), p_cattn, NULL);
-  vlk_destroy_buffer(b_wte);
-  vlk_destroy_buffer(b_wpe);
-  vlk_destroy_buffer(b_inp);
-  vlk_destroy_buffer(b_x);
-  vlk_destroy_buffer(b_ln1w);
-  vlk_destroy_buffer(b_ln1b);
-  //vlk_destroy_buffer(b_y);
-  //vlk_destroy_buffer(b_cattn_w);
-  //vlk_destroy_buffer(b_cattn_b);
-  //vlk_destroy_buffer(b_cattn_out);
   vlk_deinit();
 }
