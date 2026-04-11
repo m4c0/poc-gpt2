@@ -1,0 +1,12 @@
+#version 450
+
+layout(binding=0) readonly buffer b0 {
+  float w[];
+};
+layout(binding=1) buffer b1 {
+  float o[];
+};
+
+void main() {
+  //b[gl_GlobalInvocationID.x] = 2 + a[gl_GlobalInvocationID.x];
+}

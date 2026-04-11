@@ -444,13 +444,14 @@ void sft_get(const char * tensor, float * data, unsigned s0, unsigned s1, unsign
 
 //{{{ [vlk] Vulkan
 
-static VkBuffer vlk_bufs[2];
+static VkBuffer vlk_bufs[3];
+static VkDeviceMemory vlk_mems[3];
+
 static VkCommandBuffer vlk_cb;
 static VkCommandPool vlk_cpool;
 static VkDescriptorPool vlk_dpools[1];
 static VkDescriptorSet vlk_dsets[1];
 static VkDescriptorSetLayout vlk_dsls[1];
-static VkDeviceMemory vlk_mems[2];
 static VkPhysicalDevice vlk_pd;
 static VkPipeline vlk_ppls[1];
 static VkPipelineLayout vlk_pls[1];
@@ -668,6 +669,7 @@ static void vlk_create_buffers() {
 
   vlk_bound_buffer(local, 0, 768 * 2304);
   vlk_bound_buffer(local, 1, 2304);
+  vlk_bound_buffer(local, 2, 768);
 }
 
 static void vlk_create_command_pool() {
@@ -782,6 +784,13 @@ int main() {
   load_tensor(1, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vlk_begin_command_buffer();
+
+  vkCmdUpdateBuffer(vlk_cb, vlk_bufs[2], 0, 768 * sizeof(float), y);
+  vkCmdFillBuffer(vlk_cb, vlk_bufs[);
+  vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
+  vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dsets, 0, NULL);
+  vkCmdDispatch(vlk_cb, 1, 1, 1);
+
   vlk_end_command_buffer();
   vlk_submit();
   vkDeviceWaitIdle(vlk_dev());
