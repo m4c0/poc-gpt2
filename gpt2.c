@@ -672,9 +672,9 @@ static vlk_buffer_t vlk_create_host_buffer(VkDeviceSize sz, VkBufferUsageFlags e
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
       ex_flags);
 }
-static vlk_buffer_t vlk_create_local_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
-  return vlk_create_buffer(sz, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ex_flags);
-}
+// static vlk_buffer_t vlk_create_local_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
+//   return vlk_create_buffer(sz, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ex_flags);
+// }
 static void vlk_destroy_buffer(vlk_buffer_t b) {
   vkDestroyBuffer(vlk_dev(), b.buf, NULL);
   vkFreeMemory(vlk_dev(), b.mem, NULL);
@@ -741,13 +741,12 @@ static void vlk_deinit() {
 
 //}}}
 
-// static void load_tensor(unsigned idx, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
-//   unsigned sz = s0 * (s1 ? s1 : 1) * (s2 ? s2 : 1) * (s3 ? s3 : 1);
-//   void * ptr;
-//   _(vkMapMemory(vlk_dev(), vlk_mems[idx], 0, sz * sizeof(float), 0, &ptr));
-//   sft_get(name, ptr, s0, s1, s2, s3);
-//   vkUnmapMemory(vlk_dev(), vlk_mems[idx]);
-// }
+static void load_tensor(vlk_buffer_t b, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+  void * ptr;
+  _(vkMapMemory(vlk_dev(), b.mem, 0, VK_WHOLE_SIZE, 0, &ptr));
+  sft_get(name, ptr, s0, s1, s2, s3);
+  vkUnmapMemory(vlk_dev(), b.mem);
+}
 
 int main() {
   byt_init();
@@ -757,8 +756,8 @@ int main() {
   vlk_init();
 
   vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_cattn_w = vlk_create_local_buffer(768 * 2304, 0);
-  vlk_buffer_t b_cattn_b = vlk_create_local_buffer(2304, 0);
+  vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
+  vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
@@ -791,8 +790,8 @@ int main() {
 
   // attn.c_attn contains all data for Q, followed by K, followed by V
   // Then each of QKV is split into heads (12)
-  // load_tensor(0, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
-  // load_tensor(1, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
+  load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
+  load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vlk_begin_command_buffer();
 
