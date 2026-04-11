@@ -52,20 +52,27 @@ static int run(char ** args) {
   return 1;
 }
 
+static int shader(char * name) {
+  char spv[1024];
+  sprintf(spv, "%s.spv", name);
+
+  char * args[] = { EXE("glslang"), "-V", name, "-o", spv, 0 };
+  return run(args);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 1) return (usage(), 1);
+
+  if (shader("vulkan.comp"    )) return 1;
+  if (shader("gpt2-cattn.comp")) return 1;
+  if (shader("gpt2-embed.comp")) return 1;
+  if (shader("gpt2-lnorm.comp")) return 1;
 
   { char * args[] = { EXE(CC), "-Wall", "-g", "-o", EXE("vocab"), "vocab.c", 0 };
     if (run(args)) return 1; }
   { char * args[] = { EXE(CC), "-Wall", "-g", "-o", EXE("safetensor"), "safetensor.c", 0 };
     if (run(args)) return 1; }
-  { char * args[] = { EXE("glslang"), "-V", "vulkan.comp", "-o", "vulkan.comp.spv", 0 };
-    if (run(args)) return 1; }
   { char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", EXE("vulkan"), "vulkan.c", 0 };
-    if (run(args)) return 1; }
-  { char * args[] = { EXE("glslang"), "-V", "gpt2-cattn.comp", "-o", "gpt2-cattn.comp.spv", 0 };
-    if (run(args)) return 1; }
-  { char * args[] = { EXE("glslang"), "-V", "gpt2-embed.comp", "-o", "gpt2-embed.comp.spv", 0 };
     if (run(args)) return 1; }
   { char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", EXE("gpt2"), "gpt2.c", 0 };
     if (run(args)) return 1; }
