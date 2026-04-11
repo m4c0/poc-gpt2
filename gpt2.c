@@ -609,7 +609,7 @@ static VkPipeline vlk_create_pipeline(const char * name, unsigned set_count) {
       .pName = "main",
       .module = mod,
     },
-    .layout = vlk_pls[0],
+    .layout = vlk_pls[set_count],
   }};
 
   VkPipeline res;
