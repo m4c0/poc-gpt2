@@ -777,7 +777,7 @@ int main() {
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
   vlk_buffer_t b_cattn_out = vlk_create_host_buffer(2304, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  VkPipeline p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 3);
+  VkPipeline p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
   VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
@@ -791,8 +791,8 @@ int main() {
   vlk_begin_command_buffer();
 
   vkCmdUpdateBuffer(vlk_cb, b_inp.buf, 0, ts.sz * 4, ts.ids);
-  bind(vlk_cb, p_embed, 3, b_wte, b_wpe, b_x);
-  vkCmdDispatch(vlk_cb, 1024, 768, 1);
+  bind(vlk_cb, p_embed, 4, b_wte, b_wpe, b_inp, b_x);
+  vkCmdDispatch(vlk_cb, ts.sz, 768, 1);
 
   vlk_end_command_buffer();
   vlk_submit();
@@ -806,7 +806,7 @@ int main() {
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j + 1021]);
+      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
     }
     printf("\n");
   }

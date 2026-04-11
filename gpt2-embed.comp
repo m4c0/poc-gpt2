@@ -1,0 +1,28 @@
+#version 450
+
+layout(set = 0, binding=0) readonly buffer b0 { float wte[]; };
+layout(set = 1, binding=0) readonly buffer b1 { float wpe[]; };
+layout(set = 2, binding=0) readonly buffer b2 { int tkns[]; };
+layout(set = 3, binding=0)          buffer b3 { float x[]; };
+
+// pos and size are (row,col), like safetensors use
+uint tensor2d_pos(uvec2 pos, uvec2 sz) {
+  // This is confusing to implement, so it gets easier to use
+  uint x = pos.y;
+  uint y = pos.x;
+  uint w = sz.y;
+  return x + y * w;
+}
+
+#define T(t, p, s0, s1) t[tensor2d_pos(p, uvec2(s0, s1))]
+
+void main() {
+  uvec2 wpe_pos = gl_GlobalInvocationID.xy;
+  uvec2 x_pos   = gl_GlobalInvocationID.xy;
+
+  uvec2 wte_pos;
+  wte_pos.x = tkns[gl_GlobalInvocationID.x];
+  wte_pos.y = gl_GlobalInvocationID.y;
+  
+  T(x, x_pos, 1024, 768) = T(wpe, wpe_pos, 1024, 768) + T(wte, wte_pos, 50257, 768);
+}
