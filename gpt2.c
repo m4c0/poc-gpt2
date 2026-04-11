@@ -767,11 +767,17 @@ int main() {
   sft_init();
   vlk_init();
 
+  vlk_buffer_t b_wte = vlk_create_host_buffer(50257 * 768, 0);
+  vlk_buffer_t b_wpe = vlk_create_host_buffer(1024 * 768, 0);
+  vlk_buffer_t b_inp = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  vlk_buffer_t b_x = vlk_create_host_buffer(1024 * 768, 0);
+
   vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
   vlk_buffer_t b_cattn_out = vlk_create_host_buffer(2304, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
+  VkPipeline p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 3);
   VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
@@ -779,27 +785,51 @@ int main() {
 
   // Embedding
 
-  float wpe[768]; sft_get_row("wpe.weight", 0, wpe, 768);
-  float wte[768]; sft_get_row("wte.weight", ts.ids[0], wte, 768);
-  float x[768]; for (int i = 0; i < 768; i++) x[i] = wpe[i] + wte[i];
+  load_tensor(b_wte, "wte.weight", 50257, 768, 0, 0);
+  load_tensor(b_wpe, "wpe.weight", 1024, 768, 0, 0);
+
+  vlk_begin_command_buffer();
+
+  vkCmdUpdateBuffer(vlk_cb, b_inp.buf, 0, ts.sz * 4, ts.ids);
+  bind(vlk_cb, p_embed, 3, b_wte, b_wpe, b_x);
+  vkCmdDispatch(vlk_cb, 1024, 768, 1);
+
+  vlk_end_command_buffer();
+  vlk_submit();
+  vkDeviceWaitIdle(vlk_dev());
+ 
+  float * x;
+  _(vkMapMemory(vlk_dev(), b_x.mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 3; j++) {
+      printf("%9.6f ", x[i * 768 + j]);
+    }
+    printf("... ");
+    for (int j = 0; j < 3; j++) {
+      printf("%9.6f ", x[i * 768 + j + 1021]);
+    }
+    printf("\n");
+  }
+  vkUnmapMemory(vlk_dev(), b_x.mem);
+
 
   // Normalisation of Layer 1
 
-  float ln1w[768]; sft_get("h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
-  float ln1b[768]; sft_get("h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
+  // float ln1w[768]; sft_get("h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
+  // float ln1b[768]; sft_get("h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
 
-  float mean = 0;
-  for (int i = 0; i < 768; i++) mean += x[i];
-  mean /= 768;
+  // float mean = 0;
+  // for (int i = 0; i < 768; i++) mean += x[i];
+  // mean /= 768;
 
-  float var = 0;
-  for (int i = 0; i < 768; i++) var += (x[i] - mean) * (x[i] - mean);
-  var /= 768;
+  // float var = 0;
+  // for (int i = 0; i < 768; i++) var += (x[i] - mean) * (x[i] - mean);
+  // var /= 768;
 
-  float * y;
-  _(vkMapMemory(vlk_dev(), b_y.mem, 0, VK_WHOLE_SIZE, 0, (void **)&y));
-  for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
-  vkUnmapMemory(vlk_dev(), b_y.mem);
+  // float * y;
+  // _(vkMapMemory(vlk_dev(), b_y.mem, 0, VK_WHOLE_SIZE, 0, (void **)&y));
+  // for (int i = 0; i < 768; i++) y[i] = ln1b[i] + ln1w[i] * (x[i] - mean) / sqrtf(var + 1e-5);
+  // vkUnmapMemory(vlk_dev(), b_y.mem);
 
   // Attention Layer 1
 
@@ -809,17 +839,12 @@ int main() {
   load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
-  vlk_begin_command_buffer();
-
-  vkCmdFillBuffer(vlk_cb, b_cattn_out.buf, 0, VK_WHOLE_SIZE, 0);
-  bind(vlk_cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_y, b_cattn_out);
-  vkCmdDispatch(vlk_cb, 1, 768, 2304);
-
-  vlk_end_command_buffer();
-  vlk_submit();
-  vkDeviceWaitIdle(vlk_dev());
-
+  vkDestroyPipeline(vlk_dev(), p_embed, NULL);
   vkDestroyPipeline(vlk_dev(), p_cattn, NULL);
+  vlk_destroy_buffer(b_wte);
+  vlk_destroy_buffer(b_wpe);
+  vlk_destroy_buffer(b_inp);
+  vlk_destroy_buffer(b_x);
   vlk_destroy_buffer(b_y);
   vlk_destroy_buffer(b_cattn_w);
   vlk_destroy_buffer(b_cattn_b);
