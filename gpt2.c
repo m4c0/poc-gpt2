@@ -470,11 +470,16 @@ static void vlk_create_instance() {
   };
   VkInstanceCreateInfo info = (VkInstanceCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-    .flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
-    .enabledExtensionCount = 1,
-    .ppEnabledExtensionNames = ext,
     .pApplicationInfo = &app,
   };
+#ifdef __APPLE__
+  const char * ext[] = {
+    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+  };
+  info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+  info.enabledExtensionCount = 1;
+  info.ppEnabledExtensionNames = ext;
+#endif
   VkInstance res;
   _(vkCreateInstance(&info, NULL, &res));
   volkLoadInstance(res);
@@ -786,7 +791,7 @@ int main() {
   vlk_begin_command_buffer();
 
   vkCmdUpdateBuffer(vlk_cb, vlk_bufs[2], 0, 768 * sizeof(float), y);
-  vkCmdFillBuffer(vlk_cb, vlk_bufs[);
+  //vkCmdFillBuffer(vlk_cb, vlk_bufs[);
   vkCmdBindPipeline(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_ppls[0]);
   vkCmdBindDescriptorSets(vlk_cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[0], 0, 1, vlk_dsets, 0, NULL);
   vkCmdDispatch(vlk_cb, 1, 1, 1);
