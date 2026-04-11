@@ -449,7 +449,6 @@ static VkCommandPool vlk_cpool;
 static VkDescriptorPool vlk_dpool;
 static VkDescriptorSetLayout vlk_dsl;
 static VkPhysicalDevice vlk_pd;
-static VkPipelineLayout vlk_pls[8];
 static VkQueue vlk_q;
 static unsigned vlk_qf;
 
@@ -583,23 +582,25 @@ static void vlk_create_descriptor_pool() {
   _(vkCreateDescriptorPool(vlk_dev(), &info, NULL, &vlk_dpool));
 }
 
-static void vlk_create_pipeline_layouts() {
-  VkDescriptorSetLayout dsls[8];
-  for (int i = 0; i < 8; i++) {
-    dsls[i] = vlk_dsl;
-    VkPipelineLayoutCreateInfo info = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = i,
-      .pSetLayouts = dsls,
-    };
-    _(vkCreatePipelineLayout(vlk_dev(), &info, NULL, vlk_pls + i));
-  }
-}
-
-static VkPipeline vlk_ppl_cache[128];
+typedef struct vlk_ppl {
+  VkPipelineLayout pl;
+  VkPipeline ppl;
+} vlk_ppl_t;
+static vlk_ppl_t vlk_ppl_cache[128];
 static unsigned vlk_ppl_cache_idx = 0;
-static VkPipeline vlk_create_pipeline(const char * name, unsigned set_count) {
+static vlk_ppl_t vlk_create_pipeline(const char * name, unsigned set_count) {
   assert(set_count < 8);
+
+  vlk_ppl_t res;
+
+  VkDescriptorSetLayout dsls[8];
+  for (int i = 0; i < set_count; i++) dsls[i] = vlk_dsl;
+  VkPipelineLayoutCreateInfo pli = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    .setLayoutCount = set_count,
+    .pSetLayouts = dsls,
+  };
+  _(vkCreatePipelineLayout(vlk_dev(), &pli, NULL, &res.pl));
 
   VkShaderModule mod = vlk_create_shader_module(name);
 
@@ -611,11 +612,10 @@ static VkPipeline vlk_create_pipeline(const char * name, unsigned set_count) {
       .pName = "main",
       .module = mod,
     },
-    .layout = vlk_pls[set_count],
+    .layout = res.pl,
   }};
 
-  VkPipeline res;
-  _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, &res));
+  _(vkCreateComputePipelines(vlk_dev(), NULL, 1, infos, NULL, &res.ppl));
   vkDestroyShaderModule(vlk_dev(), mod, NULL);
   vlk_ppl_cache[vlk_ppl_cache_idx++] = res;
   return res;
@@ -687,10 +687,6 @@ static vlk_buffer_t vlk_create_host_buffer(VkDeviceSize sz, VkBufferUsageFlags e
 // static vlk_buffer_t vlk_create_local_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
 //   return vlk_create_buffer(sz, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ex_flags);
 // }
-static void vlk_destroy_buffer(vlk_buffer_t b) {
-  vkDestroyBuffer(vlk_dev(), b.buf, NULL);
-  vkFreeMemory(vlk_dev(), b.mem, NULL);
-}
 
 static void vlk_create_command_pool() {
   VkCommandPoolCreateInfo info = {
@@ -737,7 +733,6 @@ static void vlk_init() {
   vlk_create_device();
   vlk_create_descriptor_pool();
   vlk_create_descriptor_set_layouts();
-  vlk_create_pipeline_layouts();
   vlk_create_command_pool();
 }
 static void vlk_deinit() {
@@ -745,9 +740,14 @@ static void vlk_deinit() {
   for (int i = 0; i < vlk_buf_cache_idx; i++) n += vlk_buf_cache[i].size;
   fprintf(stderr, "\nTotal buffer size: %lluMB\n", n / (1024 * 1024));
 
-  for (int i = 0; i < 8; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
-  for (int i = 0; i < vlk_buf_cache_idx; i++) vlk_destroy_buffer(vlk_buf_cache[i]);
-  for (int i = 0; i < vlk_ppl_cache_idx; i++) vkDestroyPipeline(vlk_dev(), vlk_ppl_cache[i], NULL);
+  for (int i = 0; i < vlk_buf_cache_idx; i++) {
+    vkDestroyBuffer(vlk_dev(), vlk_buf_cache[i].buf, NULL);
+    vkFreeMemory(vlk_dev(), vlk_buf_cache[i].mem, NULL);
+  }
+  for (int i = 0; i < vlk_ppl_cache_idx; i++) {
+    vkDestroyPipelineLayout(vlk_dev(), vlk_ppl_cache[i].pl, NULL);
+    vkDestroyPipeline(vlk_dev(), vlk_ppl_cache[i].ppl, NULL);
+  }
   vkDestroyDescriptorSetLayout(vlk_dev(), vlk_dsl, NULL);
   vkDestroyDescriptorPool(vlk_dev(), vlk_dpool, NULL);
   vkDestroyCommandPool(vlk_dev(), vlk_cpool, NULL);
@@ -775,15 +775,15 @@ static void submit(VkCommandBuffer cb) {
   vkDeviceWaitIdle(vlk_dev());
 }
 
-static void bind(VkCommandBuffer cb, VkPipeline ppl, int n, ...) {
+static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, int n, ...) {
   va_list args;
   va_start(args, n);
   VkDescriptorSet dsets[8];
   for (int i = 0; i < n; i++) dsets[i] = va_arg(args, vlk_buffer_t).dset;
   va_end(args);
 
-  vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl);
-  vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, vlk_pls[n], 0, n, dsets, 0, NULL);
+  vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl.ppl);
+  vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl.pl, 0, n, dsets, 0, NULL);
 }
 
 int main() {
@@ -808,11 +808,11 @@ int main() {
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
   vlk_buffer_t b_x2 = vlk_create_host_buffer(1024 * 2304, 0);
 
-  VkPipeline p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
-  VkPipeline p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
-  VkPipeline p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
-  VkPipeline p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
-  VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
+  vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
+  vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
+  vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
+  vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
+  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
