@@ -63,6 +63,8 @@ int main(int argc, char ** argv) {
     if (run(args)) return 1; }
   { char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", EXE("vulkan"), "vulkan.c", 0 };
     if (run(args)) return 1; }
+  { char * args[] = { EXE("glslang"), "-V", "gpt2-cattn.comp", "-o", "gpt2-cattn.comp.spv", 0 };
+    if (run(args)) return 1; }
   { char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", EXE("gpt2"), "gpt2.c", 0 };
     if (run(args)) return 1; }
 
