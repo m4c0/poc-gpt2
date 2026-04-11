@@ -625,6 +625,7 @@ typedef struct vlk_buffer {
   VkBuffer buf;
   VkDeviceMemory mem;
   VkDescriptorSet dset;
+  unsigned size;
 } vlk_buffer_t;
 static vlk_buffer_t vlk_buf_cache[128];
 static unsigned vlk_buf_cache_idx = 0;
@@ -637,6 +638,7 @@ static vlk_buffer_t vlk_create_buffer(VkDeviceSize sz, VkMemoryPropertyFlags mem
     if ((flags & mem_flags) != mem_flags) continue;
 
     vlk_buffer_t res;
+    res.size = sz * sizeof(float);
 
     VkBufferCreateInfo buf = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -739,6 +741,10 @@ static void vlk_init() {
   vlk_create_command_pool();
 }
 static void vlk_deinit() {
+  uint64_t n = 0;
+  for (int i = 0; i < vlk_buf_cache_idx; i++) n += vlk_buf_cache[i].size;
+  fprintf(stderr, "\nTotal buffer size: %lluMB\n", n / (1024 * 1024));
+
   for (int i = 0; i < 8; i++) vkDestroyPipelineLayout(vlk_dev(), vlk_pls[i], NULL);
   for (int i = 0; i < vlk_buf_cache_idx; i++) vlk_destroy_buffer(vlk_buf_cache[i]);
   for (int i = 0; i < vlk_ppl_cache_idx; i++) vkDestroyPipeline(vlk_dev(), vlk_ppl_cache[i], NULL);
@@ -792,22 +798,21 @@ int main() {
   vlk_buffer_t b_inp = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
   vlk_buffer_t b_x0 = vlk_create_host_buffer(1024 * 768, 0);
 
-  vlk_buffer_t b_ln1w = vlk_create_host_buffer(768, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  vlk_buffer_t b_ln1w = vlk_create_host_buffer(768, 0);
+  vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_lmean = vlk_create_host_buffer(1024, 0);
   vlk_buffer_t b_lvari = vlk_create_host_buffer(1024, 0);
   vlk_buffer_t b_x1 = vlk_create_host_buffer(1024 * 768, 0);
 
-  //vlk_buffer_t b_y = vlk_create_host_buffer(768, 0);
-  //vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
-  //vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
-  //vlk_buffer_t b_cattn_out = vlk_create_host_buffer(2304, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
+  vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
+  vlk_buffer_t b_x2 = vlk_create_host_buffer(1024 * 2304, 0);
 
   VkPipeline p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
   VkPipeline p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
   VkPipeline p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
   VkPipeline p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
-  //VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
+  VkPipeline p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
 
   const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
@@ -825,44 +830,46 @@ int main() {
 
   //--- Transform
  
-  // Normalisation
+  load_tensor(b_ln1w, "h.0.ln_1.weight", 768, 0, 0, 0);
+  load_tensor(b_ln1b, "h.0.ln_1.bias",   768, 0, 0, 0);
+  load_tensor(b_cattn_w, "h.0.attn.c_attn.weight",  768, 2304, 0, 0);
+  load_tensor(b_cattn_b, "h.0.attn.c_attn.bias",   2304,    0, 0, 0);
 
-  float ln1w[768]; sft_get("h.0.ln_1.weight", ln1w, 768, 0, 0, 0);
-  float ln1b[768]; sft_get("h.0.ln_1.bias", ln1b, 768, 0, 0, 0);
+  // Normalisation
 
   cb = alloc();
   bind(cb, p_lmean, 2, b_x0, b_lmean);
   vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_lvari, 3, b_x0, b_lmean, b_lvari);
   vkCmdDispatch(cb, 1024, 768, 1);
-
-  vkCmdUpdateBuffer(cb, b_ln1w.buf, 0, 768 * 4, ln1w);
-  vkCmdUpdateBuffer(cb, b_ln1b.buf, 0, 768 * 4, ln1b);
   bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
+  bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_x2);
+  vkCmdDispatch(cb, 1024, 2304, 1);
   submit(cb);
 
+  // Multi-head attention - linear
+
   float * x;
-  _(vkMapMemory(vlk_dev(), b_x1.mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
+  VkDeviceMemory mem = b_x2.mem;
+  _(vkMapMemory(vlk_dev(), mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j]);
+      printf("%9.6f ", x[i * 3*768 + j]);
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
+      printf("%9.6f ", x[i * 3*768 + j + (3*768 - 3)]);
     }
     printf("\n");
   }
-  vkUnmapMemory(vlk_dev(), b_x1.mem);
+  vkUnmapMemory(vlk_dev(), mem);
 
   // Attention Layer 1
 
   // attn.c_attn contains all data for Q, followed by K, followed by V
   // Then each of QKV is split into heads (12). Or: split 2304 into 3,
   // then each 768 into 12 to be 64 per head
-  //load_tensor(b_cattn_w, "h.0.attn.c_attn.weight", 768, 2304, 0, 0);
-  //load_tensor(b_cattn_b, "h.0.attn.c_attn.bias", 2304, 0, 0, 0);
 
   vlk_deinit();
 }

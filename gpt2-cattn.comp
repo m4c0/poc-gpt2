@@ -7,20 +7,14 @@ layout(set = 2, binding=0) readonly buffer b2 { float x[]; };
 layout(set = 3, binding=0)          buffer b3 { float y[]; };
 
 void main() {
-  uvec2 wp = gl_GlobalInvocationID.zy;
-  uvec2 ws = gl_NumWorkGroups.zy;
-  uint ww = wp.y * ws.x + wp.x;
-
-  uvec2 xp = gl_GlobalInvocationID.xy;
-  uvec2 xs = gl_NumWorkGroups.xy;
-  uint xx = xp.y * xs.x + xp.x;
-
-  uvec2 yp = gl_GlobalInvocationID.xz;
-  uvec2 ys = gl_NumWorkGroups.xz;
-  uint yy = yp.y * ys.y + yp.y;
-
-  atomicAdd(y[yy], x[xx] * w[ww]);
-  if (gl_GlobalInvocationID.y == 1) {
-    atomicAdd(y[yy], b[gl_GlobalInvocationID.z]);
+  float n = 0;
+  for (int i = 0; i < 768; i++) {
+    uint xi = gl_GlobalInvocationID.x * 768 + i;
+    uint wi = i * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
+    n += x[xi] * w[wi];
   }
+
+  uint yi = gl_GlobalInvocationID.x * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
+  uint bi = gl_GlobalInvocationID.y;
+  y[yi] = n + b[bi];
 }
