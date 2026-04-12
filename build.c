@@ -3,6 +3,7 @@
 #define _CRT_NONSTDC_NO_WARNINGS
 #include <process.h>
 #else
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -27,6 +28,16 @@
 
 static void usage() {
   fprintf(stderr, "just call 'build' without arguments\n");
+}
+
+static uint64_t mtime(const char * name) {
+#ifdef _WIN32
+#error TODO - implement
+#else
+  struct stat t;
+  if (0 != stat(name, &t)) return 0;
+  return t.st_mtimespec.tv_sec * 1000ULL + t.st_mtimespec.tv_nsec / 1000000;
+#endif
 }
 
 static int run(char ** args) {
@@ -55,6 +66,8 @@ static int run(char ** args) {
 static int shader(char * name) {
   char spv[1024];
   sprintf(spv, "%s.spv", name);
+
+  if (mtime(name) < mtime(spv)) return 0;
 
   char * args[] = { EXE("glslang"), "-V", name, "-o", spv, 0 };
   return run(args);
