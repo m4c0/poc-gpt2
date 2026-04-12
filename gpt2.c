@@ -868,11 +868,11 @@ static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, int n, ...) {
 #define L(X, N) X.data[N]
 
 int main() {
+  vlk_init();
   byt_init();
   bpe_init();
   enc_init();
   sft_init();
-  vlk_init();
 
   vlk_buffer_t b_input = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
