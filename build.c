@@ -83,10 +83,11 @@ static int compile(char * name) {
 
   if (mtime(src) < mtime(exe)) return 0;
 
-  printf("%s\n", src);
-
   char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", exe, src, 0 };
-  return run(args);
+  if (run(args)) return 1;
+
+  fprintf(stderr, "%s\n", src);
+  return 0;
 }
 
 int main(int argc, char ** argv) {
@@ -99,7 +100,7 @@ int main(int argc, char ** argv) {
   if (shader("gpt2-lmean.comp")) return 1;
   if (shader("gpt2-lnorm.comp")) return 1;
   if (shader("gpt2-lvari.comp")) return 1;
-  if (shader("gpt2-sum.comp"))   return 1;
+  if (shader("gpt2-plsum.comp")) return 1;
 
   if (compile("vocab"     )) return 1;
   if (compile("safetensor")) return 1;

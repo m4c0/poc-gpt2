@@ -1,0 +1,13 @@
+#version 450
+
+layout(set=0, binding=0) readonly buffer in0 { float a[]; };
+layout(set=1, binding=0)          buffer in1 { float b[]; };
+
+void main() {
+  float x = 0;
+  for (int i = 0; i < 768; i++) {
+    x += a[768 * gl_GlobalInvocationID.x + i];
+  }
+  b[gl_GlobalInvocationID.x] = x;
+}
+

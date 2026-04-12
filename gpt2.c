@@ -791,11 +791,15 @@ int main() {
   sft_init();
   vlk_init();
 
+  const char * text = "The quick brown fox jumps over the lazy dog.";
+  tkn_ids_t ts = tkn_encode(text);
+
   vlk_buffer_t b_wte = vlk_create_host_buffer(50257 * 768, 0);
   vlk_buffer_t b_wpe = vlk_create_host_buffer(1024 * 768, 0);
   vlk_buffer_t b_inp = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
   vlk_buffer_t b_x0 = vlk_create_host_buffer(1024 * 768, 0);
 
+  vlk_buffer_t b_xtmp = vlk_create_host_buffer(1024 * 768, 0);
   vlk_buffer_t b_ln1w = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_lmean = vlk_create_host_buffer(1024, 0);
@@ -810,10 +814,9 @@ int main() {
   vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
+  vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
-
-  const char * text = "The quick brown fox jumps over the lazy dog.";
-  tkn_ids_t ts = tkn_encode(text);
+  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 4);
 
   //--- Embedding
 
@@ -836,10 +839,16 @@ int main() {
   // Normalisation
 
   cb = alloc();
-  bind(cb, p_lmean, 2, b_x0, b_lmean);
+  bind(cb, p_lmean, 2, b_x0, b_xtmp);
   vkCmdDispatch(cb, 1024, 768, 1);
-  bind(cb, p_lvari, 3, b_x0, b_lmean, b_lvari);
+  bind(cb, p_plsum, 2, b_xtmp, b_lmean);
+  vkCmdDispatch(cb, 1024, 1, 1);
+
+  bind(cb, p_lvari, 3, b_x0, b_lmean, b_xtmp);
   vkCmdDispatch(cb, 1024, 768, 1);
+  bind(cb, p_plsum, 2, b_xtmp, b_lvari);
+  vkCmdDispatch(cb, 1024, 1, 1);
+
   bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_x2);
