@@ -13,10 +13,11 @@
 #include <string.h>
 
 #ifdef _WIN32
-#define EXE(X) X ".exe"
+#define EXE_EXT ".exe"
 #else
-#define EXE(X) X
+#define EXE_EXT ""
 #endif
+#define EXE(X) X EXE_EXT
 
 #ifdef __clang__
 #  define CC "clang"
@@ -73,24 +74,37 @@ static int shader(char * name) {
   return run(args);
 }
 
+static int compile(char * name) {
+  char src[1024];
+  sprintf(src, "%s.c", name);
+
+  char exe[1024];
+  sprintf(exe, "%s" EXE_EXT, name);
+
+  if (mtime(src) < mtime(exe)) return 0;
+
+  printf("%s\n", src);
+
+  char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", exe, src, 0 };
+  return run(args);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 1) return (usage(), 1);
 
   if (shader("vulkan.comp"    )) return 1;
+  if (shader("gpt2-atscr.comp")) return 1;
   if (shader("gpt2-cattn.comp")) return 1;
   if (shader("gpt2-embed.comp")) return 1;
   if (shader("gpt2-lmean.comp")) return 1;
   if (shader("gpt2-lnorm.comp")) return 1;
   if (shader("gpt2-lvari.comp")) return 1;
+  if (shader("gpt2-sum.comp"))   return 1;
 
-  { char * args[] = { EXE(CC), "-Wall", "-g", "-o", EXE("vocab"), "vocab.c", 0 };
-    if (run(args)) return 1; }
-  { char * args[] = { EXE(CC), "-Wall", "-g", "-o", EXE("safetensor"), "safetensor.c", 0 };
-    if (run(args)) return 1; }
-  { char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", EXE("vulkan"), "vulkan.c", 0 };
-    if (run(args)) return 1; }
-  { char * args[] = { EXE(CC), "-Wall", "-g", "-IVulkan-Headers/include", "-o", EXE("gpt2"), "gpt2.c", 0 };
-    if (run(args)) return 1; }
+  if (compile("vocab"     )) return 1;
+  if (compile("safetensor")) return 1;
+  if (compile("vulkan"    )) return 1;
+  if (compile("gpt2"      )) return 1;
 
   return 0;
 }
