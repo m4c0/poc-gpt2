@@ -859,6 +859,8 @@ int main() {
   vkCmdDispatch(cb, 1024, 768, 1);
   submit(cb);
 
+  int n = ts.sz;
+
   //--- Transform
   for (int i = 0; i < 12; i++) {
     load_tr_tensor(b_ln1w,    i, "ln_1.weight",         768,    0, 0, 0);
@@ -892,7 +894,7 @@ int main() {
     unsigned k = 768;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
     bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
-    vkCmdDispatch(cb, 1024, 2304, 1);
+    vkCmdDispatch(cb, n, 2304, 1);
 
     for (unsigned i = 0; i < 12; i++) {
       // b_qkv contains all data for Q, followed by K, followed by V Then each of
@@ -910,7 +912,7 @@ int main() {
 
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
     bind(cb, p_cattn, 4, b_cproj_w, b_cproj_b, b_xtmp, b_x1);
-    vkCmdDispatch(cb, 1024, 768, 1);
+    vkCmdDispatch(cb, n, 768, 1);
 
     // Add residue
     bind(cb, p_add2b, 2, b_x1, b_x0);
@@ -930,13 +932,13 @@ int main() {
     // Multi-layer perceptron
 
     bind(cb, p_cattn, 4, b_mlpcf_w, b_mlpcf_b, b_x1, b_mlp);
-    vkCmdDispatch(cb, 1024, 3072, 1);
+    vkCmdDispatch(cb, n, 3072, 1);
     bind(cb, p_pgelu, 1, b_mlp);
     vkCmdDispatch(cb, 1024 * 3072, 1, 1);
     k = 3072;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
     bind(cb, p_cattn, 4, b_mlpcp_w, b_mlpcp_b, b_mlp, b_x1);
-    vkCmdDispatch(cb, 1024, 768, 1);
+    vkCmdDispatch(cb, n, 768, 1);
 
     // Add residue
     bind(cb, p_add2b, 2, b_x1, b_x0);
