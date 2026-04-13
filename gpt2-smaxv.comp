@@ -1,0 +1,17 @@
+#version 450
+
+layout(set = 0, binding=0) readonly buffer b0 { float smax[]; };
+layout(set = 1, binding=0) readonly buffer b1 { float qkv[]; };
+layout(set = 2, binding=0)          buffer b2 { float y[]; };
+
+void main() {
+  float n = 0;
+  for (int i = 0; i < 1024; i++) {
+    uint si = gl_GlobalInvocationID.x * 1024 + i;
+    uint vi = i * 2304 + gl_GlobalInvocationID.y + 768*2;
+    n += smax[si] * qkv[vi];
+  }
+
+  uint yi = gl_GlobalInvocationID.x * 768 + gl_GlobalInvocationID.y;
+  y[yi] = n;
+}

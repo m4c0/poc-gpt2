@@ -808,7 +808,7 @@ int main() {
 
   vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
-  vlk_buffer_t b_x2 = vlk_create_host_buffer(1024 * 2304, 0);
+  vlk_buffer_t b_qkv = vlk_create_host_buffer(1024 * 2304, 0);
 
   vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
 
@@ -820,6 +820,7 @@ int main() {
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2);
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2);
+  vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3);
 
   //--- Embedding
 
@@ -857,26 +858,28 @@ int main() {
 
   bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
-  bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_x2);
+  bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
-  bind(cb, p_atscr, 2, b_x2, b_h);
+  bind(cb, p_atscr, 2, b_qkv, b_h);
   vkCmdDispatch(cb, 1024, 1024, 1);
   bind(cb, p_psmax, 2, b_h, b_h);
   vkCmdDispatch(cb, 1024, 1, 1);
+  bind(cb, p_smaxv, 3, b_h, b_qkv, b_xtmp);
+  vkCmdDispatch(cb, 1024, 64, 1);
 
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_h.mem;
+  VkDeviceMemory mem = b_xtmp.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 1024 + j]);
+      printf("%9.6f ", x[i * 768 + j]);
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 1024 + j + (1024 - 3)]);
+      printf("%9.6f ", x[i * 768 + j + (64 - 3)]);
     }
     printf("\n");
   }
