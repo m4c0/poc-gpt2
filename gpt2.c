@@ -844,6 +844,7 @@ int main() {
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
+  vlk_ppl_t p_logit = vlk_create_pipeline("gpt2-logit.comp.spv", 3, 4);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
   vlk_ppl_t p_pgelu = vlk_create_pipeline("gpt2-pgelu.comp.spv", 2, 0);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
@@ -963,21 +964,27 @@ int main() {
   vkCmdDispatch(cb, 1024, 1, 1);
   bind(cb, p_lnorm, 6, b_lnfw, b_lnfb, b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
+
+  // Next logit
+
+  unsigned k = n - 1;
+  vkCmdPushConstants(cb, p_logit.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
+  bind(cb, p_logit, 3, b_wte, b_x1, b_x0);
+  vkCmdDispatch(cb, 50257, 1, 1);
+
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_x1.mem;
+  VkDeviceMemory mem = b_x0.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j]);
-    }
-    printf("... ");
-    for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
-    }
-    printf("\n");
+  for (int j = 0; j < 3; j++) {
+    printf("%9.6f ", x[j]);
   }
+  printf("... ");
+  for (int j = 0; j < 3; j++) {
+    printf("%9.6f ", x[j + (50257 - 3)]);
+  }
+  printf("\n");
   vkUnmapMemory(vlk_dev, mem);
 
   vlk_deinit();

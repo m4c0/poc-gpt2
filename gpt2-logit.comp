@@ -1,0 +1,20 @@
+#version 450
+
+layout(push_constant) uniform upc {
+  uint line;
+} pc;
+
+layout(set = 0, binding=0) readonly buffer b0 { float wte[]; };
+layout(set = 1, binding=0) readonly buffer b1 { float x[]; };
+layout(set = 2, binding=0)          buffer b2 { float logit[]; };
+
+// x @ wte.T
+void main() {
+  float n = 0;
+  for (int i = 0; i < 768; i++) {
+    uint xi = pc.line * 768 + i;
+    uint wi = gl_GlobalInvocationID.x * 768 + i;
+    n += x[xi] * wte[wi];
+  }
+  logit[gl_GlobalInvocationID.x] = n;
+}
