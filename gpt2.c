@@ -812,6 +812,8 @@ int main() {
   vlk_buffer_t b_xtmp = vlk_create_host_buffer(1024 * 768, 0);
   vlk_buffer_t b_ln1w = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, 0);
+  vlk_buffer_t b_ln2w = vlk_create_host_buffer(768, 0);
+  vlk_buffer_t b_ln2b = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_lmean = vlk_create_host_buffer(1024, 0);
   vlk_buffer_t b_lvari = vlk_create_host_buffer(1024, 0);
   vlk_buffer_t b_x1 = vlk_create_host_buffer(1024 * 768, 0);
@@ -849,6 +851,8 @@ int main() {
  
   load_tensor(b_ln1w, "h.0.ln_1.weight", 768, 0, 0, 0);
   load_tensor(b_ln1b, "h.0.ln_1.bias",   768, 0, 0, 0);
+  load_tensor(b_ln2w, "h.0.ln_2.weight", 768, 0, 0, 0);
+  load_tensor(b_ln2b, "h.0.ln_2.bias",   768, 0, 0, 0);
   load_tensor(b_cattn_w, "h.0.attn.c_attn.weight",  768, 2304, 0, 0);
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias",   2304,    0, 0, 0);
   load_tensor(b_cproj_w, "h.0.attn.c_proj.weight",  768,  768, 0, 0);
@@ -860,16 +864,15 @@ int main() {
 
   bind(cb, p_plsum, 2, b_x0, b_lmean);
   vkCmdDispatch(cb, 1024, 1, 1);
-
   bind(cb, p_lvari, 3, b_x0, b_lmean, b_xtmp);
   vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_plsum, 2, b_xtmp, b_lvari);
   vkCmdDispatch(cb, 1024, 1, 1);
+  bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
+  vkCmdDispatch(cb, 1024, 768, 1);
 
   // Multi-head attention - linear
 
-  bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
-  vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
@@ -894,10 +897,21 @@ int main() {
   bind(cb, p_add2b, 2, b_x1, b_x0);
   vkCmdDispatch(cb, 1024 * 768, 1, 1);
 
+  // Normalization
+
+  bind(cb, p_plsum, 2, b_x0, b_lmean);
+  vkCmdDispatch(cb, 1024, 1, 1);
+  bind(cb, p_lvari, 3, b_x0, b_lmean, b_xtmp);
+  vkCmdDispatch(cb, 1024, 768, 1);
+  bind(cb, p_plsum, 2, b_xtmp, b_lvari);
+  vkCmdDispatch(cb, 1024, 1, 1);
+  bind(cb, p_lnorm, 6, b_ln2w, b_ln2b, b_lmean, b_lvari, b_x0, b_x1);
+  vkCmdDispatch(cb, 1024, 768, 1);
+
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_x0.mem;
+  VkDeviceMemory mem = b_x1.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
