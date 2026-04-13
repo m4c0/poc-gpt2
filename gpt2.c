@@ -827,7 +827,6 @@ int main() {
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 0);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
-  vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2, 0);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
@@ -858,9 +857,7 @@ int main() {
 
   // Normalisation
 
-  bind(cb, p_lmean, 2, b_x0, b_xtmp);
-  vkCmdDispatch(cb, 1024, 768, 1);
-  bind(cb, p_plsum, 2, b_xtmp, b_lmean);
+  bind(cb, p_plsum, 2, b_x0, b_lmean);
   vkCmdDispatch(cb, 1024, 1, 1);
 
   bind(cb, p_lvari, 3, b_x0, b_lmean, b_xtmp);
