@@ -810,8 +810,7 @@ int main() {
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
   vlk_buffer_t b_x2 = vlk_create_host_buffer(1024 * 2304, 0);
 
-  vlk_buffer_t b_h0 = vlk_create_host_buffer(1024 * 1024, 0);
-  vlk_buffer_t b_h1 = vlk_create_host_buffer(1024 * 1024, 0);
+  vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
 
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
@@ -861,15 +860,15 @@ int main() {
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_x2);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
-  bind(cb, p_atscr, 2, b_x2, b_h0);
+  bind(cb, p_atscr, 2, b_x2, b_h);
   vkCmdDispatch(cb, 1024, 1024, 1);
-  bind(cb, p_psmax, 2, b_h0, b_h1);
+  bind(cb, p_psmax, 2, b_h, b_h);
   vkCmdDispatch(cb, 1024, 1, 1);
 
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_h1.mem;
+  VkDeviceMemory mem = b_h.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
