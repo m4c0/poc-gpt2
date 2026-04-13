@@ -836,6 +836,7 @@ int main() {
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
+  vlk_ppl_t p_pgelu = vlk_create_pipeline("gpt2-pgelu.comp.spv", 2, 0);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
@@ -918,6 +919,8 @@ int main() {
 
   bind(cb, p_cattn, 4, b_mlpcf_w, b_mlpcf_b, b_x1, b_mlp);
   vkCmdDispatch(cb, 1024, 3072, 1);
+  bind(cb, p_pgelu, 1, b_mlp);
+  vkCmdDispatch(cb, 1024 * 3072, 1, 1);
 
   submit(cb);
 

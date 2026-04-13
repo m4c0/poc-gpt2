@@ -1,0 +1,11 @@
+#version 450
+
+layout(set = 0, binding=0) buffer b0 { float mlp[]; };
+
+const float k = sqrt(2 / 3.1415926535);
+
+void main() {
+  uint id = gl_GlobalInvocationID.x;
+  float x = mlp[id];
+  mlp[id] = (1 + tanh((x*x*x * 0.044715 + x) * k)) * x * 0.5;
+}
