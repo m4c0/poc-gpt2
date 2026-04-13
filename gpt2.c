@@ -18,6 +18,8 @@
 
 #define unreachable(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while (0)
 
+const char * text = "Once upon a";
+
 //{{{ [utl] Utilities
 //====================
 
@@ -68,11 +70,11 @@ static wchar_t * byt_encode_bytes(const char * b, unsigned bytes) {
   for (int i = 0; i < bytes; i++) mb[i] = byt_map[(unsigned)b[i]];
   return mb;
 }
-// static int byt_decode_bytes(utl_wstr_t str, char * dst, unsigned dsz) {
-//   int i;
-//   for (i = 0; i < str.sz && i < dsz; i++) dst[i] = byt_rev_map[str.str[i]];
-//   return i;
-// }
+static int byt_decode_bytes(utl_wstr_t str, char * dst, unsigned dsz) {
+  int i;
+  for (i = 0; i < str.sz && i < dsz; i++) dst[i] = byt_rev_map[str.str[i]];
+  return i;
+}
 static void byt_init() {
   for (unsigned c = '!'; c <= '~'; c++) byt_map[c] = c;
   for (unsigned c = 161; c <= 172; c++) byt_map[c] = c;
@@ -341,15 +343,15 @@ static tkn_ids_t tkn_encode(const char * txt) {
 
   return (tkn_ids_t) { ids, idx };
 }
-//static int tkn_decode(tkn_ids_t ts, char * buf, int bsz) {
-//  int total = 0;
-//  for (int i = 0; i < ts.sz && i < bsz; i++) {
-//    utl_wstr_t tk = enc_map[ts.ids[i]];
-//    total += byt_decode_bytes(tk, buf + total, bsz - total);
-//  }
-//  if (total < bsz) buf[total] = 0;
-//  return total;
-//}
+static int tkn_decode(tkn_ids_t ts, char * buf, int bsz) {
+  int total = 0;
+  for (int i = 0; i < ts.sz && i < bsz; i++) {
+    utl_wstr_t tk = enc_map[ts.ids[i]];
+    total += byt_decode_bytes(tk, buf + total, bsz - total);
+  }
+  if (total < bsz) buf[total] = 0;
+  return total;
+}
 
 //}}}
 
@@ -806,7 +808,6 @@ int main() {
   sft_init();
   vlk_init();
 
-  const char * text = "The quick brown fox jumps over the lazy dog.";
   tkn_ids_t ts = tkn_encode(text);
 
   vlk_buffer_t b_wte = vlk_create_host_buffer(50257 * 768, 0);
@@ -975,17 +976,22 @@ int main() {
   submit(cb);
 
   float * x;
+  float max = -1e10;
   VkDeviceMemory mem = b_x0.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
-  for (int j = 0; j < 3; j++) {
-    printf("%9.6f ", x[j]);
+  for (int i = 0; i < 50257; i++) {
+    if (x[i] <= max) continue;
+    ts.ids[ts.sz] = i;
+    max = x[i];
   }
-  printf("... ");
-  for (int j = 0; j < 3; j++) {
-    printf("%9.6f ", x[j + (50257 - 3)]);
-  }
-  printf("\n");
   vkUnmapMemory(vlk_dev, mem);
+
+  ts.sz++;
+
+  int len = 1024;
+  char * buf = calloc(len, 1);
+  tkn_decode(ts, buf, len);
+  printf("%s\n", buf);
 
   vlk_deinit();
 }
