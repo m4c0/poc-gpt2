@@ -810,15 +810,17 @@ int main() {
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
   vlk_buffer_t b_x2 = vlk_create_host_buffer(1024 * 2304, 0);
 
-  vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
+  vlk_buffer_t b_h0 = vlk_create_host_buffer(1024 * 1024, 0);
+  vlk_buffer_t b_h1 = vlk_create_host_buffer(1024 * 1024, 0);
 
+  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2);
+  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
   vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
-  vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
+  vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2);
-  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
-  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2);
+  vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2);
 
   //--- Embedding
 
@@ -838,9 +840,10 @@ int main() {
   load_tensor(b_cattn_w, "h.0.attn.c_attn.weight",  768, 2304, 0, 0);
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias",   2304,    0, 0, 0);
 
+  cb = alloc();
+
   // Normalisation
 
-  cb = alloc();
   bind(cb, p_lmean, 2, b_x0, b_xtmp);
   vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_plsum, 2, b_xtmp, b_lmean);
@@ -851,20 +854,22 @@ int main() {
   bind(cb, p_plsum, 2, b_xtmp, b_lvari);
   vkCmdDispatch(cb, 1024, 1, 1);
 
+  // Multi-head attention - linear
+
   bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_x2);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
-  bind(cb, p_atscr, 2, b_x2, b_h);
+  bind(cb, p_atscr, 2, b_x2, b_h0);
   vkCmdDispatch(cb, 1024, 1024, 1);
+  bind(cb, p_psmax, 2, b_h0, b_h1);
+  vkCmdDispatch(cb, 1024, 1, 1);
 
   submit(cb);
 
-  // Multi-head attention - linear
-
   float * x;
-  VkDeviceMemory mem = b_h.mem;
+  VkDeviceMemory mem = b_h1.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
