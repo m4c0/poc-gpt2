@@ -1,5 +1,4 @@
 #version 450
-#extension GL_KHR_shader_subgroup_arithmetic : enable
 
 layout(set=0, binding=0) readonly buffer in0 { float a[]; };
 layout(set=1, binding=0)          buffer in1 { float b[]; };

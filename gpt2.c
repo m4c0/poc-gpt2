@@ -586,7 +586,7 @@ typedef struct vlk_ppl {
 } vlk_ppl_t;
 static vlk_ppl_t vlk_ppl_cache[128];
 static unsigned vlk_ppl_cache_idx = 0;
-static vlk_ppl_t vlk_create_pipeline(const char * name, unsigned set_count) {
+static vlk_ppl_t vlk_create_pipeline(const char * name, unsigned set_count, unsigned pcsz) {
   assert(set_count < 8);
 
   vlk_ppl_t res;
@@ -598,6 +598,16 @@ static vlk_ppl_t vlk_create_pipeline(const char * name, unsigned set_count) {
     .setLayoutCount = set_count,
     .pSetLayouts = dsls,
   };
+
+  VkPushConstantRange pc = {
+    .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+    .size = pcsz,
+  };
+  if (pcsz) {
+    pli.pushConstantRangeCount = 1;
+    pli.pPushConstantRanges = &pc;
+  }
+
   _(vkCreatePipelineLayout(vlk_dev, &pli, NULL, &res.pl));
 
   VkShaderModule mod = vlk_create_shader_module(name);
@@ -812,15 +822,15 @@ int main() {
 
   vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
 
-  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2);
-  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
-  vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
-  vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
-  vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
-  vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
-  vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2);
-  vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2);
-  vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3);
+  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
+  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 0);
+  vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
+  vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2, 0);
+  vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
+  vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
+  vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
+  vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
+  vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
 
   //--- Embedding
 
@@ -861,12 +871,16 @@ int main() {
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
-  bind(cb, p_atscr, 2, b_qkv, b_h);
-  vkCmdDispatch(cb, 1024, 1024, 1);
-  bind(cb, p_psmax, 2, b_h, b_h);
-  vkCmdDispatch(cb, 1024, 1, 1);
-  bind(cb, p_smaxv, 3, b_h, b_qkv, b_xtmp);
-  vkCmdDispatch(cb, 1024, 64, 1);
+  for (unsigned i = 0; i < 12; i++) {
+    vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
+    bind(cb, p_atscr, 2, b_qkv, b_h);
+    vkCmdDispatch(cb, 1024, 1024, 1);
+    bind(cb, p_psmax, 2, b_h, b_h);
+    vkCmdDispatch(cb, 1024, 1, 1);
+    vkCmdPushConstants(cb, p_smaxv.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
+    bind(cb, p_smaxv, 3, b_h, b_qkv, b_xtmp);
+    vkCmdDispatch(cb, 1024, 64, 1);
+  }
 
   submit(cb);
 
@@ -879,7 +893,7 @@ int main() {
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j + (64 - 3)]);
+      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
     }
     printf("\n");
   }

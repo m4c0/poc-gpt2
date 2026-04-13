@@ -1,5 +1,9 @@
 #version 450
 
+layout(push_constant) uniform upc {
+  uint head;
+} pc;
+
 layout(set = 0, binding=0) readonly buffer b0 { float qkv[]; };
 layout(set = 1, binding=0)          buffer b1 { float y[]; };
 
@@ -7,8 +11,8 @@ layout(set = 1, binding=0)          buffer b1 { float y[]; };
 void main() {
   float n = 0;
   for (int i = 0; i < 64; i++) {
-    uint qi = gl_GlobalInvocationID.x * 2304 + i;
-    uint ki = gl_GlobalInvocationID.y * 2304 + i + 768;
+    uint qi = gl_GlobalInvocationID.x * 2304 + i + pc.head*64;
+    uint ki = gl_GlobalInvocationID.y * 2304 + i + 768 + pc.head*64;
     n += qkv[qi] * qkv[ki];
   }
 
