@@ -819,6 +819,8 @@ int main() {
   vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_ln2w = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_ln2b = vlk_create_host_buffer(768, 0);
+  vlk_buffer_t b_lnfw = vlk_create_host_buffer(768, 0);
+  vlk_buffer_t b_lnfb = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_lmean = vlk_create_host_buffer(1024, 0);
   vlk_buffer_t b_lvari = vlk_create_host_buffer(1024, 0);
   vlk_buffer_t b_x1 = vlk_create_host_buffer(1024 * 768, 0);
@@ -852,6 +854,8 @@ int main() {
 
   load_tensor(b_wte, "wte.weight", 50257, 768, 0, 0);
   load_tensor(b_wpe, "wpe.weight", 1024, 768, 0, 0);
+  load_tensor(b_lnfw, "ln_f.weight", 768, 0, 0, 0);
+  load_tensor(b_lnfb, "ln_f.bias",   768, 0, 0, 0);
 
   VkCommandBuffer cb = alloc();
   vkCmdUpdateBuffer(cb, b_inp.buf, 0, ts.sz * 4, ts.ids);
@@ -947,8 +951,22 @@ int main() {
     submit(cb);
   }
 
+  cb = alloc();
+
+  // Final normalisation
+
+  bind(cb, p_plsum, 2, b_x0, b_lmean);
+  vkCmdDispatch(cb, 1024, 1, 1);
+  bind(cb, p_lvari, 3, b_x0, b_lmean, b_xtmp);
+  vkCmdDispatch(cb, 1024, 768, 1);
+  bind(cb, p_plsum, 2, b_xtmp, b_lvari);
+  vkCmdDispatch(cb, 1024, 1, 1);
+  bind(cb, p_lnorm, 6, b_lnfw, b_lnfb, b_lmean, b_lvari, b_x0, b_x1);
+  vkCmdDispatch(cb, 1024, 768, 1);
+  submit(cb);
+
   float * x;
-  VkDeviceMemory mem = b_x0.mem;
+  VkDeviceMemory mem = b_x1.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
