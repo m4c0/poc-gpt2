@@ -826,6 +826,10 @@ int main() {
   vlk_buffer_t b_cproj_w = vlk_create_host_buffer(768 * 768, 0);
   vlk_buffer_t b_cproj_b = vlk_create_host_buffer(768, 0);
 
+  vlk_buffer_t b_mlpcf_w = vlk_create_host_buffer(768 * 3072, 0);
+  vlk_buffer_t b_mlpcf_b = vlk_create_host_buffer(3072, 0);
+  vlk_buffer_t b_mlp = vlk_create_host_buffer(1024 * 3072, 0);
+
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 0);
@@ -857,6 +861,8 @@ int main() {
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias",   2304,    0, 0, 0);
   load_tensor(b_cproj_w, "h.0.attn.c_proj.weight",  768,  768, 0, 0);
   load_tensor(b_cproj_b, "h.0.attn.c_proj.bias",    768,    0, 0, 0);
+  load_tensor(b_mlpcf_w, "h.0.mlp.c_fc.weight",   768, 3072, 0, 0);
+  load_tensor(b_mlpcf_b, "h.0.mlp.c_fc.bias",    3072,    0, 0, 0);
 
   cb = alloc();
 
@@ -876,10 +882,10 @@ int main() {
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
-  // b_qkv contains all data for Q, followed by K, followed by V Then each of
-  // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into 12
-  // to be 64 per head
   for (unsigned i = 0; i < 12; i++) {
+    // b_qkv contains all data for Q, followed by K, followed by V Then each of
+    // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
+    // 12 to be 64 per head
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
     bind(cb, p_atscr, 2, b_qkv, b_h);
     vkCmdDispatch(cb, 1024, 1024, 1);
@@ -908,18 +914,23 @@ int main() {
   bind(cb, p_lnorm, 6, b_ln2w, b_ln2b, b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
 
+  // Multi-layer perceptron
+
+  bind(cb, p_cattn, 4, b_mlpcf_w, b_mlpcf_b, b_x1, b_mlp);
+  vkCmdDispatch(cb, 1024, 3072, 1);
+
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_x1.mem;
+  VkDeviceMemory mem = b_mlp.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j]);
+      printf("%9.6f ", x[i * 3072 + j]);
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
+      printf("%9.6f ", x[i * 3072 + j + (3072 - 3)]);
     }
     printf("\n");
   }
