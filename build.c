@@ -94,6 +94,7 @@ int main(int argc, char ** argv) {
   if (argc != 1) return (usage(), 1);
 
   if (shader("vulkan.comp"    )) return 1;
+  if (shader("gpt2-add2b.comp")) return 1;
   if (shader("gpt2-atscr.comp")) return 1;
   if (shader("gpt2-cattn.comp")) return 1;
   if (shader("gpt2-embed.comp")) return 1;

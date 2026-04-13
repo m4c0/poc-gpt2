@@ -1,0 +1,8 @@
+#version 450
+
+layout(set = 0, binding=0) readonly buffer b0 { float x[]; };
+layout(set = 1, binding=0)          buffer b1 { float y[]; };
+
+void main() {
+  y[gl_GlobalInvocationID.x] += x[gl_GlobalInvocationID.x];
+}
