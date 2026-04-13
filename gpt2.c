@@ -871,6 +871,9 @@ int main() {
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
+  // b_qkv contains all data for Q, followed by K, followed by V Then each of
+  // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into 12
+  // to be 64 per head
   for (unsigned i = 0; i < 12; i++) {
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
     bind(cb, p_atscr, 2, b_qkv, b_h);
@@ -898,12 +901,6 @@ int main() {
     printf("\n");
   }
   vkUnmapMemory(vlk_dev, mem);
-
-  // Attention Layer 1
-
-  // attn.c_attn contains all data for Q, followed by K, followed by V
-  // Then each of QKV is split into heads (12). Or: split 2304 into 3,
-  // then each 768 into 12 to be 64 per head
 
   vlk_deinit();
 }
