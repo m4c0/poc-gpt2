@@ -1,0 +1,18 @@
+#version 450
+
+layout(set = 0, binding=0) readonly buffer b0 { float qkv[]; };
+layout(set = 1, binding=0)          buffer b1 { float y[]; };
+
+// q @ k.T / sqrt(64) + mask
+void main() {
+  float n = 0;
+  for (int i = 0; i < 64; i++) {
+    uint qi = gl_GlobalInvocationID.x * 2304 + i;
+    uint ki = gl_GlobalInvocationID.y * 2304 + i + 768;
+    n += qkv[qi] * qkv[ki];
+  }
+
+  uint yi = gl_GlobalInvocationID.x * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
+  float mask = gl_GlobalInvocationID.x < gl_GlobalInvocationID.y ? 1e10 : 0;
+  y[yi] = n / sqrt(64) - mask;
+}

@@ -810,13 +810,15 @@ int main() {
   vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
   vlk_buffer_t b_x2 = vlk_create_host_buffer(1024 * 2304, 0);
 
+  vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
+
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4);
   vlk_ppl_t p_lmean = vlk_create_pipeline("gpt2-lmean.comp.spv", 2);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4);
-  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 4);
+  vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2);
 
   //--- Embedding
 
@@ -853,20 +855,24 @@ int main() {
   vkCmdDispatch(cb, 1024, 768, 1);
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_x2);
   vkCmdDispatch(cb, 1024, 2304, 1);
+
+  bind(cb, p_atscr, 2, b_x2, b_h);
+  vkCmdDispatch(cb, 1024, 1024, 1);
+
   submit(cb);
 
   // Multi-head attention - linear
 
   float * x;
-  VkDeviceMemory mem = b_x2.mem;
+  VkDeviceMemory mem = b_h.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 3*768 + j]);
+      printf("%9.6f ", x[i * 1024 + j]);
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 3*768 + j + (3*768 - 3)]);
+      printf("%9.6f ", x[i * 1024 + j + (1024 - 3)]);
     }
     printf("\n");
   }
