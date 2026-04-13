@@ -821,6 +821,8 @@ int main() {
   vlk_buffer_t b_qkv = vlk_create_host_buffer(1024 * 2304, 0);
 
   vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
+  vlk_buffer_t b_cproj_w = vlk_create_host_buffer(768 * 768, 0);
+  vlk_buffer_t b_cproj_b = vlk_create_host_buffer(768, 0);
 
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 0);
@@ -849,6 +851,8 @@ int main() {
   load_tensor(b_ln1b, "h.0.ln_1.bias",   768, 0, 0, 0);
   load_tensor(b_cattn_w, "h.0.attn.c_attn.weight",  768, 2304, 0, 0);
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias",   2304,    0, 0, 0);
+  load_tensor(b_cproj_w, "h.0.attn.c_proj.weight",  768,  768, 0, 0);
+  load_tensor(b_cproj_b, "h.0.attn.c_proj.bias",    768,    0, 0, 0);
 
   cb = alloc();
 
@@ -885,10 +889,13 @@ int main() {
     vkCmdDispatch(cb, 1024, 64, 1);
   }
 
+  bind(cb, p_cattn, 4, b_cproj_w, b_cproj_b, b_xtmp, b_x0);
+  vkCmdDispatch(cb, 1024, 768, 1);
+
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_xtmp.mem;
+  VkDeviceMemory mem = b_x0.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
