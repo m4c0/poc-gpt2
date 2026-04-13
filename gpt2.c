@@ -828,11 +828,13 @@ int main() {
 
   vlk_buffer_t b_mlpcf_w = vlk_create_host_buffer(768 * 3072, 0);
   vlk_buffer_t b_mlpcf_b = vlk_create_host_buffer(3072, 0);
+  vlk_buffer_t b_mlpcp_w = vlk_create_host_buffer(768 * 3072, 0);
+  vlk_buffer_t b_mlpcp_b = vlk_create_host_buffer(768, 0);
   vlk_buffer_t b_mlp = vlk_create_host_buffer(1024 * 3072, 0);
 
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
-  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 0);
+  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
@@ -862,8 +864,10 @@ int main() {
   load_tensor(b_cattn_b, "h.0.attn.c_attn.bias",   2304,    0, 0, 0);
   load_tensor(b_cproj_w, "h.0.attn.c_proj.weight",  768,  768, 0, 0);
   load_tensor(b_cproj_b, "h.0.attn.c_proj.bias",    768,    0, 0, 0);
-  load_tensor(b_mlpcf_w, "h.0.mlp.c_fc.weight",   768, 3072, 0, 0);
-  load_tensor(b_mlpcf_b, "h.0.mlp.c_fc.bias",    3072,    0, 0, 0);
+  load_tensor(b_mlpcf_w, "h.0.mlp.c_fc.weight",     768, 3072, 0, 0);
+  load_tensor(b_mlpcf_b, "h.0.mlp.c_fc.bias",      3072,    0, 0, 0);
+  load_tensor(b_mlpcp_w, "h.0.mlp.c_proj.weight",  3072,  768, 0, 0);
+  load_tensor(b_mlpcp_b, "h.0.mlp.c_proj.bias",     768,    0, 0, 0);
 
   cb = alloc();
 
@@ -880,6 +884,8 @@ int main() {
 
   // Multi-head attention - linear
 
+  unsigned k = 768;
+  vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
   bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
   vkCmdDispatch(cb, 1024, 2304, 1);
 
@@ -897,6 +903,7 @@ int main() {
     vkCmdDispatch(cb, 1024, 64, 1);
   }
 
+  vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
   bind(cb, p_cattn, 4, b_cproj_w, b_cproj_b, b_xtmp, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
 
@@ -921,19 +928,23 @@ int main() {
   vkCmdDispatch(cb, 1024, 3072, 1);
   bind(cb, p_pgelu, 1, b_mlp);
   vkCmdDispatch(cb, 1024 * 3072, 1, 1);
+  k = 3072;
+  vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
+  bind(cb, p_cattn, 4, b_mlpcp_w, b_mlpcp_b, b_mlp, b_xtmp);
+  vkCmdDispatch(cb, 1024, 768, 1);
 
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_mlp.mem;
+  VkDeviceMemory mem = b_xtmp.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 3072 + j]);
+      printf("%9.6f ", x[i * 768 + j]);
     }
     printf("... ");
     for (int j = 0; j < 3; j++) {
-      printf("%9.6f ", x[i * 3072 + j + (3072 - 3)]);
+      printf("%9.6f ", x[i * 768 + j + (768 - 3)]);
     }
     printf("\n");
   }

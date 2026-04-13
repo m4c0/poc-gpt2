@@ -1,5 +1,9 @@
 #version 450
 
+layout(push_constant) uniform upc {
+  uint mid;
+} pc;
+
 layout(set = 0, binding=0) readonly buffer b0 { float w[]; };
 layout(set = 1, binding=0) readonly buffer b1 { float b[]; };
 layout(set = 2, binding=0) readonly buffer b2 { float x[]; };
@@ -7,8 +11,8 @@ layout(set = 3, binding=0)          buffer b3 { float y[]; };
 
 void main() {
   float n = 0;
-  for (int i = 0; i < 768; i++) {
-    uint xi = gl_GlobalInvocationID.x * 768 + i;
+  for (int i = 0; i < pc.mid; i++) {
+    uint xi = gl_GlobalInvocationID.x * pc.mid + i;
     uint wi = i * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
     n += x[xi] * w[wi];
   }
