@@ -930,13 +930,17 @@ int main() {
   vkCmdDispatch(cb, 1024 * 3072, 1, 1);
   k = 3072;
   vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-  bind(cb, p_cattn, 4, b_mlpcp_w, b_mlpcp_b, b_mlp, b_xtmp);
+  bind(cb, p_cattn, 4, b_mlpcp_w, b_mlpcp_b, b_mlp, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
+
+  // Add residue
+  bind(cb, p_add2b, 2, b_x1, b_x0);
+  vkCmdDispatch(cb, 1024 * 768, 1, 1);
 
   submit(cb);
 
   float * x;
-  VkDeviceMemory mem = b_xtmp.mem;
+  VkDeviceMemory mem = b_x0.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 3; j++) {
