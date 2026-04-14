@@ -856,9 +856,11 @@ int main() {
   //--- Load input buffer
 
   tkn_ids_t ts = tkn_encode(text);
-  VkCommandBuffer cb = alloc();
-  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
-  submit(cb);
+
+  char * buf = calloc(10240, 1);
+  strcpy(buf, text);
+  printf("%s", buf);
+  fflush(stdout);
 
   //--- Embedding
 
@@ -867,7 +869,11 @@ int main() {
   load_tensor(b_lnfw, "ln_f.weight", 768, 0, 0, 0);
   load_tensor(b_lnfb, "ln_f.bias",   768, 0, 0, 0);
 
+  VkCommandBuffer cb;
+
+next:
   cb = alloc();
+  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
   bind(cb, p_embed, 4, b_wte, b_wpe, b_input, b_x0);
   vkCmdDispatch(cb, 1024, 768, 1);
   submit(cb);
@@ -995,10 +1001,13 @@ int main() {
 
   ts.sz++;
 
-  int len = 1024;
-  char * buf = calloc(len, 1);
-  tkn_decode(ts, buf, len);
-  printf("%s\n", buf);
+  int len = strlen(buf);
+  tkn_decode(ts, buf, 10240);
+  printf("%s", buf + len);
+  fflush(stdout);
+  if (ts.sz < 128) goto next;
+
+  printf("\n");
 
   vlk_deinit();
 }
