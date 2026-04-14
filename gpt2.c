@@ -890,13 +890,13 @@ int main() {
     // Normalisation
 
     bind(cb, p_plsum, 2, b_x0, b_lmean);
-    vkCmdDispatch(cb, 1024, 1, 1);
+    vkCmdDispatch(cb, n, 1, 1);
     bind(cb, p_lvari, 3, b_x0, b_lmean, b_x2);
-    vkCmdDispatch(cb, 1024, 768, 1);
+    vkCmdDispatch(cb, n, 768, 1);
     bind(cb, p_plsum, 2, b_x2, b_lvari);
-    vkCmdDispatch(cb, 1024, 1, 1);
+    vkCmdDispatch(cb, n, 1, 1);
     bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
-    vkCmdDispatch(cb, 1024, 768, 1);
+    vkCmdDispatch(cb, n, 768, 1);
 
     // Multi-head attention - linear
 
@@ -911,12 +911,12 @@ int main() {
       // 12 to be 64 per head
       vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
       bind(cb, p_atscr, 2, b_qkv, b_h);
-      vkCmdDispatch(cb, 1024, 1024, 1);
+      vkCmdDispatch(cb, n, 1024, 1);
       bind(cb, p_psmax, 2, b_h, b_h);
-      vkCmdDispatch(cb, 1024, 1, 1);
+      vkCmdDispatch(cb, n, 1, 1);
       vkCmdPushConstants(cb, p_smaxv.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
       bind(cb, p_smaxv, 3, b_h, b_qkv, b_x2);
-      vkCmdDispatch(cb, 1024, 64, 1);
+      vkCmdDispatch(cb, n, 64, 1);
     }
 
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
