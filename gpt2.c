@@ -779,6 +779,11 @@ static void load_tr_tensor(vlk_buffer_t b, int idx, const char * name, unsigned 
   load_tensor(b, buf, s0, s1, s2, s3);
 }
 
+static vlk_buffer_t create_tensor_param_buffer(unsigned s0, unsigned s1) {
+  // These will be loaded from the tensor file, currently requires host
+  return vlk_create_host_buffer(s0 * (s1 == 0 ? 1 : s1), 0);
+}
+
 static VkCommandBuffer alloc() {
   VkCommandBuffer cb = vlk_allocate_command_buffer();
   vlk_begin_command_buffer(cb);
@@ -810,35 +815,33 @@ int main() {
 
   tkn_ids_t ts = tkn_encode(text);
 
-  vlk_buffer_t b_wte = vlk_create_host_buffer(50257 * 768, 0);
-  vlk_buffer_t b_wpe = vlk_create_host_buffer(1024 * 768, 0);
-  vlk_buffer_t b_inp = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  vlk_buffer_t b_x0 = vlk_create_host_buffer(1024 * 768, 0);
+  vlk_buffer_t b_input = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  vlk_buffer_t b_xtmp = vlk_create_host_buffer(1024 * 768, 0);
-  vlk_buffer_t b_ln1w = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_ln1b = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_ln2w = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_ln2b = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_lnfw = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_lnfb = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_lmean = vlk_create_host_buffer(1024, 0);
-  vlk_buffer_t b_lvari = vlk_create_host_buffer(1024, 0);
-  vlk_buffer_t b_x1 = vlk_create_host_buffer(1024 * 768, 0);
+  vlk_buffer_t b_cattn_b = create_tensor_param_buffer( 2304,    0);
+  vlk_buffer_t b_cattn_w = create_tensor_param_buffer(  768, 2304);
+  vlk_buffer_t b_cproj_b = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_cproj_w = create_tensor_param_buffer(  768,  768);
+  vlk_buffer_t b_ln1b    = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_ln1w    = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_ln2b    = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_ln2w    = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_lnfb    = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_lnfw    = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_mlpcf_b = create_tensor_param_buffer( 3072,    0);
+  vlk_buffer_t b_mlpcf_w = create_tensor_param_buffer(  768, 3072);
+  vlk_buffer_t b_mlpcp_b = create_tensor_param_buffer(  768,    0);
+  vlk_buffer_t b_mlpcp_w = create_tensor_param_buffer(  768, 3072);
+  vlk_buffer_t b_wpe     = create_tensor_param_buffer( 1024,  768);
+  vlk_buffer_t b_wte     = create_tensor_param_buffer(50257,  768);
 
-  vlk_buffer_t b_cattn_w = vlk_create_host_buffer(768 * 2304, 0);
-  vlk_buffer_t b_cattn_b = vlk_create_host_buffer(2304, 0);
-  vlk_buffer_t b_qkv = vlk_create_host_buffer(1024 * 2304, 0);
-
-  vlk_buffer_t b_h = vlk_create_host_buffer(1024 * 1024, 0);
-  vlk_buffer_t b_cproj_w = vlk_create_host_buffer(768 * 768, 0);
-  vlk_buffer_t b_cproj_b = vlk_create_host_buffer(768, 0);
-
-  vlk_buffer_t b_mlpcf_w = vlk_create_host_buffer(768 * 3072, 0);
-  vlk_buffer_t b_mlpcf_b = vlk_create_host_buffer(3072, 0);
-  vlk_buffer_t b_mlpcp_w = vlk_create_host_buffer(768 * 3072, 0);
-  vlk_buffer_t b_mlpcp_b = vlk_create_host_buffer(768, 0);
-  vlk_buffer_t b_mlp = vlk_create_host_buffer(1024 * 3072, 0);
+  vlk_buffer_t b_h       = vlk_create_host_buffer(1024 * 1024, 0);
+  vlk_buffer_t b_lmean   = vlk_create_host_buffer(1024,        0);
+  vlk_buffer_t b_lvari   = vlk_create_host_buffer(1024,        0);
+  vlk_buffer_t b_mlp     = vlk_create_host_buffer(1024 * 3072, 0);
+  vlk_buffer_t b_qkv     = vlk_create_host_buffer(1024 * 2304, 0);
+  vlk_buffer_t b_x0      = vlk_create_host_buffer(1024 *  768, 0);
+  vlk_buffer_t b_x1      = vlk_create_host_buffer(1024 *  768, 0);
+  vlk_buffer_t b_xtmp    = vlk_create_host_buffer(1024 *  768, 0);
 
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
@@ -860,8 +863,8 @@ int main() {
   load_tensor(b_lnfb, "ln_f.bias",   768, 0, 0, 0);
 
   VkCommandBuffer cb = alloc();
-  vkCmdUpdateBuffer(cb, b_inp.buf, 0, ts.sz * 4, ts.ids);
-  bind(cb, p_embed, 4, b_wte, b_wpe, b_inp, b_x0);
+  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
+  bind(cb, p_embed, 4, b_wte, b_wpe, b_input, b_x0);
   vkCmdDispatch(cb, 1024, 768, 1);
   submit(cb);
 
