@@ -813,8 +813,6 @@ int main() {
   sft_init();
   vlk_init();
 
-  tkn_ids_t ts = tkn_encode(text);
-
   vlk_buffer_t b_input = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
   vlk_buffer_t b_cattn_b = create_tensor_param_buffer( 2304,    0);
@@ -855,6 +853,13 @@ int main() {
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
 
+  //--- Load input buffer
+
+  tkn_ids_t ts = tkn_encode(text);
+  VkCommandBuffer cb = alloc();
+  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
+  submit(cb);
+
   //--- Embedding
 
   load_tensor(b_wte, "wte.weight", 50257, 768, 0, 0);
@@ -862,8 +867,7 @@ int main() {
   load_tensor(b_lnfw, "ln_f.weight", 768, 0, 0, 0);
   load_tensor(b_lnfb, "ln_f.bias",   768, 0, 0, 0);
 
-  VkCommandBuffer cb = alloc();
-  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
+  cb = alloc();
   bind(cb, p_embed, 4, b_wte, b_wpe, b_input, b_x0);
   vkCmdDispatch(cb, 1024, 768, 1);
   submit(cb);
