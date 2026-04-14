@@ -988,6 +988,16 @@ next:
 
   submit(cb);
 
+
+  // TODO: add temperature
+  // TODO: add penalty for repeating tokens
+
+  // Note: temperature is about
+  // 1. Divide logits (ie x0) by a number between 1 and 0 (when close to "0",
+  //    it is the same as "argmax"
+  // 2. Softmax result of "1" to create a percentage that adds to 1.0
+  // 3. Pick a random number between 0 and 1 and check it against "2"
+
   float * x;
   float max = -1e10;
   VkDeviceMemory mem = b_x0.mem;
