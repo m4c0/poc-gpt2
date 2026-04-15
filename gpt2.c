@@ -700,9 +700,9 @@ static vlk_buffer_t vlk_create_host_buffer(VkDeviceSize sz, VkBufferUsageFlags e
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
       ex_flags);
 }
-// static vlk_buffer_t vlk_create_local_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
-//   return vlk_create_buffer(sz, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ex_flags);
-// }
+static vlk_buffer_t vlk_create_local_buffer(VkDeviceSize sz, VkBufferUsageFlags ex_flags) {
+  return vlk_create_buffer(sz, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ex_flags);
+}
 
 static void vlk_create_query_pool() {
   VkQueryPoolCreateInfo info = {
@@ -911,15 +911,15 @@ int main() {
   tbf_load_tr_tensor(b_mlpcp_w, "mlp.c_proj.weight",  3072,  768, 0, 0);
   tbf_load_tr_tensor(b_mlpcp_b, "mlp.c_proj.bias",     768,    0, 0, 0);
 
-  vlk_buffer_t b_amax0   = vlk_create_host_buffer( 256,        0);
-  vlk_buffer_t b_h       = vlk_create_host_buffer(1024 * 1024, 0);
-  vlk_buffer_t b_lmean   = vlk_create_host_buffer(1024,        0);
-  vlk_buffer_t b_lvari   = vlk_create_host_buffer(1024,        0);
-  vlk_buffer_t b_mlp     = vlk_create_host_buffer(1024 * 3072, 0);
-  vlk_buffer_t b_qkv     = vlk_create_host_buffer(1024 * 2304, 0);
-  vlk_buffer_t b_x0      = vlk_create_host_buffer(1024 *  768, 0);
-  vlk_buffer_t b_x1      = vlk_create_host_buffer(1024 *  768, 0);
-  vlk_buffer_t b_x2      = vlk_create_host_buffer(1024 *  768, 0);
+  vlk_buffer_t b_amax0   = vlk_create_local_buffer( 256,        0);
+  vlk_buffer_t b_h       = vlk_create_local_buffer(1024 * 1024, 0);
+  vlk_buffer_t b_lmean   = vlk_create_local_buffer(1024,        0);
+  vlk_buffer_t b_lvari   = vlk_create_local_buffer(1024,        0);
+  vlk_buffer_t b_mlp     = vlk_create_local_buffer(1024 * 3072, 0);
+  vlk_buffer_t b_qkv     = vlk_create_local_buffer(1024 * 2304, 0);
+  vlk_buffer_t b_x0      = vlk_create_local_buffer(1024 *  768, 0);
+  vlk_buffer_t b_x1      = vlk_create_local_buffer(1024 *  768, 0);
+  vlk_buffer_t b_x2      = vlk_create_local_buffer(1024 *  768, 0);
 
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
