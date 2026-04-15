@@ -895,7 +895,7 @@ int main() {
 
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
-  vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 3, 0);
+  vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 3, 4);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
@@ -931,6 +931,7 @@ next:
   vkCmdDispatch(cb, 1024, 768, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
+  // Used to test performance/etc if we always run the entire 1024 rows
   int n = ts.sz;
 
   //--- Transform
