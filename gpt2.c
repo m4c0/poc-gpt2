@@ -927,7 +927,7 @@ int main() {
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
-  vlk_ppl_t p_logit = vlk_create_pipeline("gpt2-logit.comp.spv", 3, 4);
+  vlk_ppl_t p_logit = vlk_create_pipeline("gpt2-logit.comp.spv", 4, 4);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
   vlk_ppl_t p_pgelu = vlk_create_pipeline("gpt2-pgelu.comp.spv", 2, 0);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
@@ -945,8 +945,9 @@ int main() {
   vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
   submit(cb);
 
-  int tksz = ts.sz;
   vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
+
+  int count = 0;
 
 next:
   cb = alloc();
@@ -1063,9 +1064,7 @@ next:
 
   // Next logit
 
-  unsigned k = tksz - 1;
-  vkCmdPushConstants(cb, p_logit.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-  bind(cb, p_logit, 3, B(b_wte), b_x1, b_x0);
+  bind(cb, p_logit, 4, B(b_wte), b_x1, b_x0, b_indir);
   vkCmdDispatch(cb, 50257, 1, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -1074,14 +1073,13 @@ next:
   bind(cb, p_amax0, 2, b_x0, b_amax0);
   vkCmdDispatch(cb, 256, 1, 1);
 
-  vkCmdPushConstants(cb, p_amax1.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &tksz);
   bind(cb, p_amax1, 4, b_x0, b_amax0, b_input, b_indir);
   vkCmdDispatch(cb, 1, 1, 1);
 
   submit(cb);
 
-  tksz++;
-  if (tksz < 20) goto next;
+  count++;
+  if (count < 12) goto next;
 
   // TODO: add temperature
   // TODO: add penalty for repeating tokens
@@ -1094,12 +1092,13 @@ next:
 
   vkDeviceWaitIdle(vlk_dev);
 
+  ts.sz += count;
+
   unsigned * t;
   VkDeviceMemory mem = b_input.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&t));
-  for (int i = 0; i < tksz; i++) ts.ids[i] = t[i];
+  for (int i = 0; i < ts.sz; i++) ts.ids[i] = t[i];
   vkUnmapMemory(vlk_dev, mem);
-  ts.sz = tksz;
 
   char * buf = calloc(10240, 1);
   tkn_decode(ts, buf, 10240);
