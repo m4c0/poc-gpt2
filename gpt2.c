@@ -734,6 +734,7 @@ static VkCommandBuffer vlk_allocate_command_buffer() {
 static void vlk_begin_command_buffer(VkCommandBuffer cb) {
   VkCommandBufferBeginInfo info = {
     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
   };
   vkBeginCommandBuffer(cb, &info);
 }
@@ -947,9 +948,6 @@ int main() {
 
   vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
 
-  int count = 0;
-
-next:
   cb = alloc();
   int qp = 0;
   vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
@@ -1076,10 +1074,10 @@ next:
   bind(cb, p_amax1, 4, b_x0, b_amax0, b_input, b_indir);
   vkCmdDispatch(cb, 1, 1, 1);
 
-  submit(cb);
+  vlk_end_command_buffer(cb);
 
-  count++;
-  if (count < 12) goto next;
+  int count = 0;
+  for (; count < 12; count++) vlk_submit(cb);
 
   // TODO: add temperature
   // TODO: add penalty for repeating tokens
