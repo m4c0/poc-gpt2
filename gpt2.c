@@ -14,8 +14,6 @@
 
 #include "Vulkan-Headers/include/vulkan/vulkan_core.h"
 
-#define _(X) assert(VK_SUCCESS == (X));
-
 #define unreachable(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while (0)
 
 const char * text = "What's the capital of France?";
@@ -457,6 +455,13 @@ static VkQueue vlk_q;
 static VkQueryPool vlk_qpool;
 static unsigned vlk_qf;
 
+static void vlk_check(VkResult r, const char * msg) {
+  if (r == VK_SUCCESS) return;
+  fprintf(stderr, "Vulkan call failed (code=%d): %s\n", r, msg);
+  exit(1);
+}
+#define _(X) vlk_check((X), #X)
+
 static void vlk_create_instance() {
   VkApplicationInfo app = {
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -572,11 +577,11 @@ static void vlk_create_descriptor_set_layouts() {
 static void vlk_create_descriptor_pool() {
   VkDescriptorPoolSize pszs[1] = {{
     .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    .descriptorCount = 256,
+    .descriptorCount = 1024,
   }};
   VkDescriptorPoolCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-    .maxSets = 32,
+    .maxSets = 1024,
     .poolSizeCount = 1,
     .pPoolSizes = pszs,
   };
@@ -638,7 +643,7 @@ typedef struct vlk_buffer {
   VkDescriptorSet dset;
   unsigned size;
 } vlk_buffer_t;
-static vlk_buffer_t vlk_buf_cache[128];
+static vlk_buffer_t vlk_buf_cache[1024];
 static unsigned vlk_buf_cache_idx = 0;
 static vlk_buffer_t vlk_create_buffer(VkDeviceSize sz, VkMemoryPropertyFlags mem_flags, VkBufferUsageFlags ex_flags) {
   VkPhysicalDeviceMemoryProperties props;
@@ -779,22 +784,35 @@ static void vlk_deinit() {
 
 //}}}
 
-static void load_tensor(vlk_buffer_t b, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+//{{{ [tbf] Tensor Buffers
+
+typedef struct tbf_list {
+  vlk_buffer_t data[12];
+} tbf_list_t;
+static tbf_list_t tbf_create_tensor_param_buffers(unsigned n, unsigned s0, unsigned s1) {
+  // These will be loaded from the tensor file, currently requires host
+  tbf_list_t res;
+  for (int i = 0; i < n; i++) {
+    res.data[i] = vlk_create_host_buffer(s0 * (s1 == 0 ? 1 : s1), 0);
+  }
+  return res;
+}
+
+static void tbf_load_tensor(vlk_buffer_t b, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
   void * ptr;
   _(vkMapMemory(vlk_dev, b.mem, 0, VK_WHOLE_SIZE, 0, &ptr));
   sft_get(name, ptr, s0, s1, s2, s3);
   vkUnmapMemory(vlk_dev, b.mem);
 }
-static void load_tr_tensor(vlk_buffer_t b, int idx, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
+static void tbf_load_tr_tensor(tbf_list_t l, const char * name, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
   char buf[256];
-  sprintf(buf, "h.%d.%s", idx, name);
-  load_tensor(b, buf, s0, s1, s2, s3);
+  for (int i = 0; i < 12; i++) {
+    sprintf(buf, "h.%d.%s", i, name);
+    tbf_load_tensor(l.data[i], buf, s0, s1, s2, s3);
+  }
 }
 
-static vlk_buffer_t create_tensor_param_buffer(unsigned s0, unsigned s1) {
-  // These will be loaded from the tensor file, currently requires host
-  return vlk_create_host_buffer(s0 * (s1 == 0 ? 1 : s1), 0);
-}
+//}}}
 
 static VkCommandBuffer alloc() {
   VkCommandBuffer cb = vlk_allocate_command_buffer();
@@ -818,6 +836,9 @@ static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, int n, ...) {
   vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl.pl, 0, n, dsets, 0, NULL);
 }
 
+#define B(X) X.data[0]
+#define L(X, N) X.data[N]
+
 int main() {
   byt_init();
   bpe_init();
@@ -827,22 +848,40 @@ int main() {
 
   vlk_buffer_t b_input = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  vlk_buffer_t b_cattn_b = create_tensor_param_buffer( 2304,    0);
-  vlk_buffer_t b_cattn_w = create_tensor_param_buffer(  768, 2304);
-  vlk_buffer_t b_cproj_b = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_cproj_w = create_tensor_param_buffer(  768,  768);
-  vlk_buffer_t b_ln1b    = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_ln1w    = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_ln2b    = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_ln2w    = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_lnfb    = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_lnfw    = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_mlpcf_b = create_tensor_param_buffer( 3072,    0);
-  vlk_buffer_t b_mlpcf_w = create_tensor_param_buffer(  768, 3072);
-  vlk_buffer_t b_mlpcp_b = create_tensor_param_buffer(  768,    0);
-  vlk_buffer_t b_mlpcp_w = create_tensor_param_buffer(  768, 3072);
-  vlk_buffer_t b_wpe     = create_tensor_param_buffer( 1024,  768);
-  vlk_buffer_t b_wte     = create_tensor_param_buffer(50257,  768);
+  tbf_list_t b_cattn_b = tbf_create_tensor_param_buffers(12,  2304,    0);
+  tbf_list_t b_cattn_w = tbf_create_tensor_param_buffers(12,   768, 2304);
+  tbf_list_t b_cproj_b = tbf_create_tensor_param_buffers(12,   768,    0);
+  tbf_list_t b_cproj_w = tbf_create_tensor_param_buffers(12,   768,  768);
+  tbf_list_t b_ln1b    = tbf_create_tensor_param_buffers(12,   768,    0);
+  tbf_list_t b_ln1w    = tbf_create_tensor_param_buffers(12,   768,    0);
+  tbf_list_t b_ln2b    = tbf_create_tensor_param_buffers(12,   768,    0);
+  tbf_list_t b_ln2w    = tbf_create_tensor_param_buffers(12,   768,    0);
+  tbf_list_t b_lnfb    = tbf_create_tensor_param_buffers( 1,   768,    0);
+  tbf_list_t b_lnfw    = tbf_create_tensor_param_buffers( 1,   768,    0);
+  tbf_list_t b_mlpcf_b = tbf_create_tensor_param_buffers(12,  3072,    0);
+  tbf_list_t b_mlpcf_w = tbf_create_tensor_param_buffers(12,   768, 3072);
+  tbf_list_t b_mlpcp_b = tbf_create_tensor_param_buffers(12,   768,    0);
+  tbf_list_t b_mlpcp_w = tbf_create_tensor_param_buffers(12,   768, 3072);
+  tbf_list_t b_wpe     = tbf_create_tensor_param_buffers( 1,  1024,  768);
+  tbf_list_t b_wte     = tbf_create_tensor_param_buffers( 1, 50257,  768);
+
+  tbf_load_tensor(b_wte.data[0], "wte.weight", 50257, 768, 0, 0);
+  tbf_load_tensor(b_wpe.data[0], "wpe.weight", 1024, 768, 0, 0);
+  tbf_load_tensor(b_lnfw.data[0], "ln_f.weight", 768, 0, 0, 0);
+  tbf_load_tensor(b_lnfb.data[0], "ln_f.bias",   768, 0, 0, 0);
+
+  tbf_load_tr_tensor(b_ln1w,    "ln_1.weight",         768,    0, 0, 0);
+  tbf_load_tr_tensor(b_ln1b,    "ln_1.bias",           768,    0, 0, 0);
+  tbf_load_tr_tensor(b_ln2w,    "ln_2.weight",         768,    0, 0, 0);
+  tbf_load_tr_tensor(b_ln2b,    "ln_2.bias",           768,    0, 0, 0);
+  tbf_load_tr_tensor(b_cattn_w, "attn.c_attn.weight",  768, 2304, 0, 0);
+  tbf_load_tr_tensor(b_cattn_b, "attn.c_attn.bias",   2304,    0, 0, 0);
+  tbf_load_tr_tensor(b_cproj_w, "attn.c_proj.weight",  768,  768, 0, 0);
+  tbf_load_tr_tensor(b_cproj_b, "attn.c_proj.bias",    768,    0, 0, 0);
+  tbf_load_tr_tensor(b_mlpcf_w, "mlp.c_fc.weight",     768, 3072, 0, 0);
+  tbf_load_tr_tensor(b_mlpcf_b, "mlp.c_fc.bias",      3072,    0, 0, 0);
+  tbf_load_tr_tensor(b_mlpcp_w, "mlp.c_proj.weight",  3072,  768, 0, 0);
+  tbf_load_tr_tensor(b_mlpcp_b, "mlp.c_proj.bias",     768,    0, 0, 0);
 
   vlk_buffer_t b_h       = vlk_create_host_buffer(1024 * 1024, 0);
   vlk_buffer_t b_lmean   = vlk_create_host_buffer(1024,        0);
@@ -876,11 +915,6 @@ int main() {
 
   //--- Embedding
 
-  load_tensor(b_wte, "wte.weight", 50257, 768, 0, 0);
-  load_tensor(b_wpe, "wpe.weight", 1024, 768, 0, 0);
-  load_tensor(b_lnfw, "ln_f.weight", 768, 0, 0, 0);
-  load_tensor(b_lnfb, "ln_f.bias",   768, 0, 0, 0);
-
   VkCommandBuffer cb;
 
 next:
@@ -890,7 +924,7 @@ next:
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
   vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
-  bind(cb, p_embed, 4, b_wte, b_wpe, b_input, b_x0);
+  bind(cb, p_embed, 4, B(b_wte), B(b_wpe), b_input, b_x0);
   vkCmdDispatch(cb, 1024, 768, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
   submit(cb);
@@ -899,19 +933,6 @@ next:
 
   //--- Transform
   for (int i = 0; i < 12; i++) {
-    load_tr_tensor(b_ln1w,    i, "ln_1.weight",         768,    0, 0, 0);
-    load_tr_tensor(b_ln1b,    i, "ln_1.bias",           768,    0, 0, 0);
-    load_tr_tensor(b_ln2w,    i, "ln_2.weight",         768,    0, 0, 0);
-    load_tr_tensor(b_ln2b,    i, "ln_2.bias",           768,    0, 0, 0);
-    load_tr_tensor(b_cattn_w, i, "attn.c_attn.weight",  768, 2304, 0, 0);
-    load_tr_tensor(b_cattn_b, i, "attn.c_attn.bias",   2304,    0, 0, 0);
-    load_tr_tensor(b_cproj_w, i, "attn.c_proj.weight",  768,  768, 0, 0);
-    load_tr_tensor(b_cproj_b, i, "attn.c_proj.bias",    768,    0, 0, 0);
-    load_tr_tensor(b_mlpcf_w, i, "mlp.c_fc.weight",     768, 3072, 0, 0);
-    load_tr_tensor(b_mlpcf_b, i, "mlp.c_fc.bias",      3072,    0, 0, 0);
-    load_tr_tensor(b_mlpcp_w, i, "mlp.c_proj.weight",  3072,  768, 0, 0);
-    load_tr_tensor(b_mlpcp_b, i, "mlp.c_proj.bias",     768,    0, 0, 0);
-
     cb = alloc();
 
     // Normalisation
@@ -925,7 +946,7 @@ next:
     bind(cb, p_plsum, 2, b_x2, b_lvari);
     vkCmdDispatch(cb, n, 1, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_lnorm, 6, b_ln1w, b_ln1b, b_lmean, b_lvari, b_x0, b_x1);
+    bind(cb, p_lnorm, 6, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
     vkCmdDispatch(cb, n, 768, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -933,7 +954,7 @@ next:
 
     unsigned k = 768;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_cattn, 4, b_cattn_w, b_cattn_b, b_x1, b_qkv);
+    bind(cb, p_cattn, 4, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
     vkCmdDispatch(cb, n, 2304, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -955,7 +976,7 @@ next:
     }
 
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_cattn, 4, b_cproj_w, b_cproj_b, b_x2, b_x1);
+    bind(cb, p_cattn, 4, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
     vkCmdDispatch(cb, n, 768, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -975,13 +996,13 @@ next:
     bind(cb, p_plsum, 2, b_x2, b_lvari);
     vkCmdDispatch(cb, 1024, 1, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_lnorm, 6, b_ln2w, b_ln2b, b_lmean, b_lvari, b_x0, b_x1);
+    bind(cb, p_lnorm, 6, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
     vkCmdDispatch(cb, 1024, 768, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
     // Multi-layer perceptron
 
-    bind(cb, p_cattn, 4, b_mlpcf_w, b_mlpcf_b, b_x1, b_mlp);
+    bind(cb, p_cattn, 4, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
     vkCmdDispatch(cb, n, 3072, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
     bind(cb, p_pgelu, 1, b_mlp);
@@ -989,7 +1010,7 @@ next:
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
     k = 3072;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_cattn, 4, b_mlpcp_w, b_mlpcp_b, b_mlp, b_x1);
+    bind(cb, p_cattn, 4, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
     vkCmdDispatch(cb, n, 768, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -1014,7 +1035,7 @@ next:
   bind(cb, p_plsum, 2, b_x2, b_lvari);
   vkCmdDispatch(cb, 1024, 1, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-  bind(cb, p_lnorm, 6, b_lnfw, b_lnfb, b_lmean, b_lvari, b_x0, b_x1);
+  bind(cb, p_lnorm, 6, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1);
   vkCmdDispatch(cb, 1024, 768, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -1022,7 +1043,7 @@ next:
 
   unsigned k = n - 1;
   vkCmdPushConstants(cb, p_logit.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-  bind(cb, p_logit, 3, b_wte, b_x1, b_x0);
+  bind(cb, p_logit, 3, B(b_wte), b_x1, b_x0);
   vkCmdDispatch(cb, 50257, 1, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
