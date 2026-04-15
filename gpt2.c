@@ -937,18 +937,18 @@ next:
     vkCmdDispatch(cb, n, 2304, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
-    for (unsigned i = 0; i < 12; i++) {
+    for (unsigned head = 0; head < 12; head++) {
       // b_qkv contains all data for Q, followed by K, followed by V Then each of
       // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
       // 12 to be 64 per head
-      vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
+      vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &head);
       bind(cb, p_atscr, 2, b_qkv, b_h);
       vkCmdDispatch(cb, n, 1024, 1);
       vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
       bind(cb, p_psmax, 2, b_h, b_h);
       vkCmdDispatch(cb, n, 1, 1);
       vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-      vkCmdPushConstants(cb, p_smaxv.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &i);
+      vkCmdPushConstants(cb, p_smaxv.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &head);
       bind(cb, p_smaxv, 3, b_h, b_qkv, b_x2);
       vkCmdDispatch(cb, n, 64, 1);
       vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
