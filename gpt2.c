@@ -911,11 +911,6 @@ int main() {
 
   tkn_ids_t ts = tkn_encode(text);
 
-  char * buf = calloc(10240, 1);
-  strcpy(buf, text);
-  printf("%s", buf);
-  fflush(stdout);
-
   //--- Embedding
 
   VkCommandBuffer cb;
@@ -936,7 +931,7 @@ next:
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
   // Used to test performance/etc if we always run the entire 1024 rows
-  int n = ts.sz;
+  int n = tksz;
 
   //--- Transform
   for (int i = 0; i < 12; i++) {
@@ -1060,6 +1055,9 @@ next:
 
   submit(cb);
 
+  tksz++;
+  if (tksz < 20) goto next;
+
   // TODO: add temperature
   // TODO: add penalty for repeating tokens
 
@@ -1072,19 +1070,13 @@ next:
   unsigned * t;
   VkDeviceMemory mem = b_input.mem;
   _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&t));
-  ts.ids[ts.sz] = t[ts.sz];
+  for (int i = 0; i < tksz; i++) ts.ids[i] = t[i];
   vkUnmapMemory(vlk_dev, mem);
+  ts.sz = tksz;
 
-  ts.sz++;
-  tksz = ts.sz;
-
-  int len = strlen(buf);
+  char * buf = calloc(10240, 1);
   tkn_decode(ts, buf, 10240);
-  printf("%s", buf + len);
-  fflush(stdout);
-  if (ts.sz < 20) goto next;
-
-  printf("\n");
+  printf("%s\n", buf);
 
   uint64_t data[1024];
   _(vkGetQueryPoolResults(vlk_dev, vlk_qpool, 0,
