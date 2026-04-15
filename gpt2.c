@@ -927,13 +927,11 @@ next:
   bind(cb, p_embed, 4, B(b_wte), B(b_wpe), b_input, b_x0);
   vkCmdDispatch(cb, 1024, 768, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-  submit(cb);
 
   int n = ts.sz;
 
   //--- Transform
   for (int i = 0; i < 12; i++) {
-    cb = alloc();
 
     // Normalisation
 
@@ -1018,11 +1016,7 @@ next:
     bind(cb, p_add2b, 2, b_x1, b_x0);
     vkCmdDispatch(cb, 1024 * 768, 1, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-
-    submit(cb);
   }
-
-  cb = alloc();
 
   // Final normalisation
 
@@ -1041,7 +1035,7 @@ next:
 
   // Next logit
 
-  unsigned k = n - 1;
+  unsigned k = ts.sz - 1;
   vkCmdPushConstants(cb, p_logit.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
   bind(cb, p_logit, 3, B(b_wte), b_x1, b_x0);
   vkCmdDispatch(cb, 50257, 1, 1);
