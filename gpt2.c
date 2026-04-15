@@ -822,7 +822,6 @@ static VkCommandBuffer alloc() {
 static void submit(VkCommandBuffer cb) {
   vlk_end_command_buffer(cb);
   vlk_submit(cb);
-  vkDeviceWaitIdle(vlk_dev);
 }
 
 static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, int n, ...) {
@@ -1066,6 +1065,8 @@ next:
   //    it is the same as "argmax"
   // 2. Softmax result of "1" to create a percentage that adds to 1.0
   // 3. Pick a random number between 0 and 1 and check it against "2"
+
+  vkDeviceWaitIdle(vlk_dev);
 
   unsigned * t;
   VkDeviceMemory mem = b_input.mem;
