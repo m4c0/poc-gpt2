@@ -946,7 +946,7 @@ int main() {
   submit(cb);
 
   int tksz = ts.sz;
-  vlk_buffer_t b_indir = create_indirect_buffer(tksz);
+  vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
 
 next:
   cb = alloc();
