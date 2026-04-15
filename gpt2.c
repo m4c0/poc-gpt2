@@ -919,6 +919,11 @@ int main() {
   //--- Embedding
 
   VkCommandBuffer cb;
+  cb = alloc();
+  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
+  submit(cb);
+
+  int tksz = ts.sz;
 
 next:
   cb = alloc();
@@ -926,7 +931,6 @@ next:
   vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
-  vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
   bind(cb, p_embed, 4, B(b_wte), B(b_wpe), b_input, b_x0);
   vkCmdDispatch(cb, 1024, 768, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
@@ -1039,7 +1043,7 @@ next:
 
   // Next logit
 
-  unsigned k = ts.sz - 1;
+  unsigned k = tksz - 1;
   vkCmdPushConstants(cb, p_logit.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
   bind(cb, p_logit, 3, B(b_wte), b_x1, b_x0);
   vkCmdDispatch(cb, 50257, 1, 1);
@@ -1049,6 +1053,10 @@ next:
 
   bind(cb, p_amax0, 2, b_x0, b_amax0);
   vkCmdDispatch(cb, 256, 1, 1);
+
+  vkCmdPushConstants(cb, p_amax1.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &tksz);
+  bind(cb, p_amax1, 3, b_x0, b_amax0, b_input);
+  vkCmdDispatch(cb, 1, 1, 1);
 
   submit(cb);
 
@@ -1061,18 +1069,14 @@ next:
   // 2. Softmax result of "1" to create a percentage that adds to 1.0
   // 3. Pick a random number between 0 and 1 and check it against "2"
 
-  float * x;
-  float max = -1e10;
-  VkDeviceMemory mem = b_x0.mem;
-  _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&x));
-  for (int i = 0; i < 50257; i++) {
-    if (x[i] <= max) continue;
-    ts.ids[ts.sz] = i;
-    max = x[i];
-  }
+  unsigned * t;
+  VkDeviceMemory mem = b_input.mem;
+  _(vkMapMemory(vlk_dev, mem, 0, VK_WHOLE_SIZE, 0, (void **)&t));
+  ts.ids[ts.sz] = t[ts.sz];
   vkUnmapMemory(vlk_dev, mem);
 
   ts.sz++;
+  tksz = ts.sz;
 
   int len = strlen(buf);
   tkn_decode(ts, buf, 10240);

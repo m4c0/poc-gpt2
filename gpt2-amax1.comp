@@ -12,7 +12,7 @@ void main() {
   uint mid = idx[0];
   float mx = x[mid];
   for (int i = 0; i < 256; i++) {
-    if (mx < x[idx[i]]) continue;
+    if (mx >= x[idx[i]]) continue;
     mid = idx[i];
     mx = x[mid];
   }
