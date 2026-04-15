@@ -1,0 +1,21 @@
+#version 450
+
+layout(push_constant) uniform upc {
+  uint n;
+} pc;
+
+layout(set = 0, binding=0) readonly buffer b0 { float x[]; };
+layout(set = 1, binding=0) readonly buffer b1 { uint idx[]; };
+layout(set = 2, binding=0)          buffer b2 { uint y[]; };
+
+void main() {
+  uint mid = idx[0];
+  float mx = x[mid];
+  for (int i = 0; i < 256; i++) {
+    if (mx < x[idx[i]]) continue;
+    mid = idx[i];
+    mx = x[mid];
+  }
+
+  y[pc.n] = mid;
+}

@@ -883,6 +883,7 @@ int main() {
   tbf_load_tr_tensor(b_mlpcp_w, "mlp.c_proj.weight",  3072,  768, 0, 0);
   tbf_load_tr_tensor(b_mlpcp_b, "mlp.c_proj.bias",     768,    0, 0, 0);
 
+  vlk_buffer_t b_amax0   = vlk_create_host_buffer( 256,        0);
   vlk_buffer_t b_h       = vlk_create_host_buffer(1024 * 1024, 0);
   vlk_buffer_t b_lmean   = vlk_create_host_buffer(1024,        0);
   vlk_buffer_t b_lvari   = vlk_create_host_buffer(1024,        0);
@@ -893,6 +894,8 @@ int main() {
   vlk_buffer_t b_x2      = vlk_create_host_buffer(1024 *  768, 0);
 
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
+  vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
+  vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 3, 0);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
@@ -1041,8 +1044,12 @@ next:
   vkCmdDispatch(cb, 50257, 1, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
-  submit(cb);
+  // Argmax
 
+  bind(cb, p_amax0, 2, b_x0, b_amax0);
+  vkCmdDispatch(cb, 256, 1, 1);
+
+  submit(cb);
 
   // TODO: add temperature
   // TODO: add penalty for repeating tokens
