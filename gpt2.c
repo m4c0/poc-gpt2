@@ -922,7 +922,7 @@ int main() {
 
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
-  vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 3, 4);
+  vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 4, 4);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
@@ -949,17 +949,6 @@ int main() {
   vlk_buffer_t b_indir = create_indirect_buffer(tksz);
 
 next:
-{
-  VkDispatchIndirectCommand * t;
-  _(vkMapMemory(vlk_dev, b_indir.mem, 0, VK_WHOLE_SIZE, 0, (void **)&t));
-  t[di_1   ] = (VkDispatchIndirectCommand) { tksz,    1, 1 };
-  t[di_64  ] = (VkDispatchIndirectCommand) { tksz,   64, 1 };
-  t[di_768 ] = (VkDispatchIndirectCommand) { tksz,  768, 1 };
-  t[di_1024] = (VkDispatchIndirectCommand) { tksz, 1024, 1 };
-  t[di_2304] = (VkDispatchIndirectCommand) { tksz, 2304, 1 };
-  t[di_3072] = (VkDispatchIndirectCommand) { tksz, 3072, 1 };
-  vkUnmapMemory(vlk_dev, b_indir.mem);
-}
   cb = alloc();
   int qp = 0;
   vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
@@ -1086,7 +1075,7 @@ next:
   vkCmdDispatch(cb, 256, 1, 1);
 
   vkCmdPushConstants(cb, p_amax1.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &tksz);
-  bind(cb, p_amax1, 3, b_x0, b_amax0, b_input);
+  bind(cb, p_amax1, 4, b_x0, b_amax0, b_input, b_indir);
   vkCmdDispatch(cb, 1, 1, 1);
 
   submit(cb);
