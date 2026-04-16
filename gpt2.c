@@ -1110,6 +1110,7 @@ int main() {
     if (d < 100000) continue;
     printf("%4d -- %12lld\n", i, d);
   }
+  printf(" Total: %12lld\n", data[qp - 1] - data[0]);
 
   vlk_deinit();
 }
