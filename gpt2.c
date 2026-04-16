@@ -939,14 +939,14 @@ int main() {
 
   tkn_ids_t ts = tkn_encode(text);
 
+  vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
+
   //--- Embedding
 
   VkCommandBuffer cb;
   cb = alloc();
   vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
   submit(cb);
-
-  vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
 
   cb = alloc();
   int qp = 0;
