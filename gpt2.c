@@ -591,6 +591,7 @@ static void vlk_create_descriptor_pool() {
 typedef struct vlk_ppl {
   VkPipelineLayout pl;
   VkPipeline ppl;
+  unsigned sets;
 } vlk_ppl_t;
 static vlk_ppl_t vlk_ppl_cache[128];
 static unsigned vlk_ppl_cache_idx = 0;
@@ -598,6 +599,7 @@ static vlk_ppl_t vlk_create_pipeline(const char * name, unsigned set_count, unsi
   assert(set_count < 8);
 
   vlk_ppl_t res;
+  res.sets = set_count;
 
   VkDescriptorSetLayout dsls[8];
   for (int i = 0; i < set_count; i++) dsls[i] = vlk_dsl;
@@ -853,15 +855,15 @@ static void dispatch_indirect(VkCommandBuffer cb, vlk_buffer_t buf, di_et di) {
   vkCmdDispatchIndirect(cb, buf.buf, di * sizeof(VkDispatchIndirectCommand));
 }
 
-static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, int n, ...) {
+static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, ...) {
   va_list args;
-  va_start(args, n);
+  va_start(args, ppl);
   VkDescriptorSet dsets[8];
-  for (int i = 0; i < n; i++) dsets[i] = va_arg(args, vlk_buffer_t).dset;
+  for (int i = 0; i < ppl.sets; i++) dsets[i] = va_arg(args, vlk_buffer_t).dset;
   va_end(args);
 
   vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl.ppl);
-  vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl.pl, 0, n, dsets, 0, NULL);
+  vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, ppl.pl, 0, ppl.sets, dsets, 0, NULL);
 }
 
 #define B(X) X.data[0]
@@ -953,7 +955,7 @@ int main() {
   vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
-  bind(cb, p_embed, 4, B(b_wte), B(b_wpe), b_input, b_x0);
+  bind(cb, p_embed, B(b_wte), B(b_wpe), b_input, b_x0);
   dispatch_indirect(cb, b_indir, di_768);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -962,16 +964,16 @@ int main() {
 
     // Normalisation
 
-    bind(cb, p_plsum, 2, b_x0, b_lmean);
+    bind(cb, p_plsum, b_x0, b_lmean);
     dispatch_indirect(cb, b_indir, di_1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_lvari, 3, b_x0, b_lmean, b_x2);
+    bind(cb, p_lvari, b_x0, b_lmean, b_x2);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_plsum, 2, b_x2, b_lvari);
+    bind(cb, p_plsum, b_x2, b_lvari);
     dispatch_indirect(cb, b_indir, di_1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_lnorm, 6, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
+    bind(cb, p_lnorm, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -979,7 +981,7 @@ int main() {
 
     unsigned k = 768;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_lnear, 4, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
+    bind(cb, p_lnear, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
     dispatch_indirect(cb, b_indir, di_2304);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -988,89 +990,89 @@ int main() {
       // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
       // 12 to be 64 per head
       vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &head);
-      bind(cb, p_atscr, 2, b_qkv, b_h);
+      bind(cb, p_atscr, b_qkv, b_h);
       dispatch_indirect(cb, b_indir, di_1024);
       vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-      bind(cb, p_psmax, 2, b_h, b_h);
+      bind(cb, p_psmax, b_h, b_h);
       dispatch_indirect(cb, b_indir, di_1);
       vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
       vkCmdPushConstants(cb, p_smaxv.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &head);
-      bind(cb, p_smaxv, 3, b_h, b_qkv, b_x2);
+      bind(cb, p_smaxv, b_h, b_qkv, b_x2);
       dispatch_indirect(cb, b_indir, di_64);
       vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
     }
 
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_lnear, 4, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
+    bind(cb, p_lnear, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
     // Add residue
-    bind(cb, p_add2b, 2, b_x1, b_x0);
+    bind(cb, p_add2b, b_x1, b_x0);
     vkCmdDispatch(cb, 1024 * 768, 1, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
     // Normalization
 
-    bind(cb, p_plsum, 2, b_x0, b_lmean);
+    bind(cb, p_plsum, b_x0, b_lmean);
     dispatch_indirect(cb, b_indir, di_1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_lvari, 3, b_x0, b_lmean, b_x2);
+    bind(cb, p_lvari, b_x0, b_lmean, b_x2);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_plsum, 2, b_x2, b_lvari);
+    bind(cb, p_plsum, b_x2, b_lvari);
     dispatch_indirect(cb, b_indir, di_1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_lnorm, 6, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
+    bind(cb, p_lnorm, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
     // Multi-layer perceptron
 
-    bind(cb, p_lnear, 4, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
+    bind(cb, p_lnear, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
     dispatch_indirect(cb, b_indir, di_3072);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-    bind(cb, p_pgelu, 1, b_mlp);
+    bind(cb, p_pgelu, b_mlp);
     vkCmdDispatch(cb, 1024 * 3072, 1, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
     k = 3072;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_lnear, 4, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
+    bind(cb, p_lnear, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
     // Add residue
-    bind(cb, p_add2b, 2, b_x1, b_x0);
+    bind(cb, p_add2b, b_x1, b_x0);
     vkCmdDispatch(cb, 1024 * 768, 1, 1);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
   }
 
   //--- Final normalisation
 
-  bind(cb, p_plsum, 2, b_x0, b_lmean);
+  bind(cb, p_plsum, b_x0, b_lmean);
   dispatch_indirect(cb, b_indir, di_1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-  bind(cb, p_lvari, 3, b_x0, b_lmean, b_x2);
+  bind(cb, p_lvari, b_x0, b_lmean, b_x2);
   dispatch_indirect(cb, b_indir, di_768);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-  bind(cb, p_plsum, 2, b_x2, b_lvari);
+  bind(cb, p_plsum, b_x2, b_lvari);
   dispatch_indirect(cb, b_indir, di_1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-  bind(cb, p_lnorm, 6, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1);
+  bind(cb, p_lnorm, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1);
   dispatch_indirect(cb, b_indir, di_768);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
   //--- Next logit
 
-  bind(cb, p_logit, 4, B(b_wte), b_x1, b_x0, b_indir);
+  bind(cb, p_logit, B(b_wte), b_x1, b_x0, b_indir);
   vkCmdDispatch(cb, 50257, 1, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
   //--- Argmax (i.e. next token) directly into input
 
-  bind(cb, p_amax0, 2, b_x0, b_amax0);
+  bind(cb, p_amax0, b_x0, b_amax0);
   vkCmdDispatch(cb, 256, 1, 1);
-  bind(cb, p_amax1, 4, b_x0, b_amax0, b_input, b_indir);
+  bind(cb, p_amax1, b_x0, b_amax0, b_input, b_indir);
   vkCmdDispatch(cb, 1, 1, 1);
 
   vlk_end_command_buffer(cb);
