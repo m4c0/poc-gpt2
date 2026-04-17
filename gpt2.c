@@ -510,23 +510,17 @@ static void vlk_create_device() {
     .queueFamilyIndex = vlk_qf,
   };
 
-  VkPhysicalDeviceShaderAtomicFloatFeaturesEXT atomics = {0};
-  atomics.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT;
-  atomics.shaderBufferFloat32AtomicAdd = 1;
-
   VkDeviceCreateInfo info = (VkDeviceCreateInfo) {
     .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-    .pNext = &atomics,
     .queueCreateInfoCount = 1,
     .pQueueCreateInfos = &q,
-    .enabledExtensionCount = 1,
+    .enabledExtensionCount = 0,
     .ppEnabledExtensionNames = (const char *[]) {
-      "VK_EXT_shader_atomic_float",
       "VK_KHR_portability_subset"
     },
   };
 #ifdef __APPLE__
-  info.enabledExtensionCount = 2;
+  info.enabledExtensionCount = 1;
 #endif
 
   _(vkCreateDevice(vlk_pd, &info, NULL, &vlk_dev));

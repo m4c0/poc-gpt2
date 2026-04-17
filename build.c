@@ -3,11 +3,12 @@
 #define _CRT_NONSTDC_NO_WARNINGS
 #include <process.h>
 #else
-#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
+#include <sys/stat.h>
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +34,9 @@ static void usage() {
 
 static uint64_t mtime(const char * name) {
 #ifdef _WIN32
-#error TODO - implement
+  struct __stat64 s = {0};
+  _stat64(name, &s);
+  return s.st_mtime;
 #else
   struct stat t;
   if (0 != stat(name, &t)) return 0;
