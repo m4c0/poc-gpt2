@@ -925,8 +925,8 @@ int main() {
   vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
   vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 4, 4);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
-  vlk_ppl_t p_cattn = vlk_create_pipeline("gpt2-cattn.comp.spv", 4, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
+  vlk_ppl_t p_lnear = vlk_create_pipeline("gpt2-lnear.comp.spv", 4, 4);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
   vlk_ppl_t p_logit = vlk_create_pipeline("gpt2-logit.comp.spv", 4, 4);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
@@ -979,7 +979,7 @@ int main() {
 
     unsigned k = 768;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_cattn, 4, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
+    bind(cb, p_lnear, 4, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
     dispatch_indirect(cb, b_indir, di_2304);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -1001,7 +1001,7 @@ int main() {
     }
 
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_cattn, 4, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
+    bind(cb, p_lnear, 4, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
@@ -1027,7 +1027,7 @@ int main() {
 
     // Multi-layer perceptron
 
-    bind(cb, p_cattn, 4, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
+    bind(cb, p_lnear, 4, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
     dispatch_indirect(cb, b_indir, di_3072);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
     bind(cb, p_pgelu, 1, b_mlp);
@@ -1035,7 +1035,7 @@ int main() {
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
     k = 3072;
     vkCmdPushConstants(cb, p_atscr.pl, VK_SHADER_STAGE_COMPUTE_BIT, 0, 4, &k);
-    bind(cb, p_cattn, 4, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
+    bind(cb, p_lnear, 4, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
     dispatch_indirect(cb, b_indir, di_768);
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 

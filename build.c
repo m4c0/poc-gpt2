@@ -98,8 +98,8 @@ int main(int argc, char ** argv) {
   if (shader("gpt2-amax0.comp")) return 1;
   if (shader("gpt2-amax1.comp")) return 1;
   if (shader("gpt2-atscr.comp")) return 1;
-  if (shader("gpt2-cattn.comp")) return 1;
   if (shader("gpt2-embed.comp")) return 1;
+  if (shader("gpt2-lnear.comp")) return 1;
   if (shader("gpt2-lnorm.comp")) return 1;
   if (shader("gpt2-logit.comp")) return 1;
   if (shader("gpt2-lvari.comp")) return 1;
