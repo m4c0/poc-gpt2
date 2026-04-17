@@ -994,7 +994,7 @@ int main() {
 
     // Add residue
 
-    dispatch(p_add2b, 1024 * 768, 1, 1, b_x1, b_x0);
+    dispatch_i(p_add2b, di_768, b_x1, b_x0);
 
     // Normalization 2
 
@@ -1012,10 +1012,11 @@ int main() {
 
     // Add residue
 
-    dispatch(p_add2b, 1024 * 768, 1, 1, b_x1, b_x0);
+   dispatch_i(p_add2b, di_768, b_x1, b_x0);
   }
 
   //--- Final normalisation
+  //import print;
 
   dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
   dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
