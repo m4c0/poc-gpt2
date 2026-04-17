@@ -1045,7 +1045,7 @@ int main() {
     vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
   }
 
-  // Final normalisation
+  //--- Final normalisation
 
   bind(cb, p_plsum, 2, b_x0, b_lmean);
   dispatch_indirect(cb, b_indir, di_1);
@@ -1060,27 +1060,31 @@ int main() {
   dispatch_indirect(cb, b_indir, di_768);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
-  // Next logit
+  //--- Next logit
 
   bind(cb, p_logit, 4, B(b_wte), b_x1, b_x0, b_indir);
   vkCmdDispatch(cb, 50257, 1, 1);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
-  // Argmax
+  //--- Argmax (i.e. next token) directly into input
 
   bind(cb, p_amax0, 2, b_x0, b_amax0);
   vkCmdDispatch(cb, 256, 1, 1);
-
   bind(cb, p_amax1, 4, b_x0, b_amax0, b_input, b_indir);
   vkCmdDispatch(cb, 1, 1, 1);
 
   vlk_end_command_buffer(cb);
 
+  //--- Generate N tokens
+
   int count = 0;
   for (; count < 12; count++) vlk_submit(cb);
+  vkDeviceWaitIdle(vlk_dev);
 
   // TODO: add temperature
   // TODO: add penalty for repeating tokens
+  // TODO: add KV-cache
+  // TODO: print tokens inside loop and measure performance
 
   // Note: temperature is about
   // 1. Divide logits (ie x0) by a number between 1 and 0 (when close to "0",
@@ -1088,7 +1092,13 @@ int main() {
   // 2. Softmax result of "1" to create a percentage that adds to 1.0
   // 3. Pick a random number between 0 and 1 and check it against "2"
 
-  vkDeviceWaitIdle(vlk_dev);
+  // Note: penalty for repeating tokens is a matter of subtractring weights of
+  // logits for tokens that were previously used
+  
+  // Note: KV-cache might improve the speed but it might also nuke the clarity
+  // of the code
+
+  //--- Load tokens from GPU and print final text
 
   ts.sz += count;
 
@@ -1102,12 +1112,14 @@ int main() {
   tkn_decode(ts, buf, 10240);
   printf("%s\n", buf);
 
+  //--- Dump timings
+
   uint64_t data[1024];
   _(vkGetQueryPoolResults(vlk_dev, vlk_qpool, 0,
         qp, sizeof(data), data, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
   for (int i = 1; i < qp; i++) {
     int64_t d = data[i] - data[i - 1];
-    if (d < 100000) continue;
+    if (d < 100000) continue; // Only the slowest
     printf("%4d -- %12lld\n", i, d);
   }
   printf(" Total: %12lld\n", data[qp - 1] - data[0]);
