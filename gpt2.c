@@ -1016,7 +1016,6 @@ int main() {
   }
 
   //--- Final normalisation
-  //import print;
 
   dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
   dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
