@@ -1006,7 +1006,7 @@ int main() {
     // Multi-layer perceptron
 
     dispatch_i(p_lnear, di_3072, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
-    dispatch(p_pgelu, 1024 * 3072, 1, 1, b_mlp);
+    dispatch_i(p_pgelu, di_3072, b_mlp);
     push_k(p_lnear, 3072);
     dispatch_i(p_lnear, di_768, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
 
