@@ -942,15 +942,16 @@ int main() {
   tbf_load_tr_tensor(b_mlpcp_w, "mlp.c_proj.weight",  3072,  768, 0, 0);
   tbf_load_tr_tensor(b_mlpcp_b, "mlp.c_proj.bias",     768,    0, 0, 0);
 
-  vlk_buffer_t b_amax0   = vlk_create_local_buffer( 256,        0);
-  vlk_buffer_t b_h       = vlk_create_local_buffer(1024 * 1024, 0);
-  vlk_buffer_t b_lmean   = vlk_create_local_buffer(1024,        0);
-  vlk_buffer_t b_lvari   = vlk_create_local_buffer(1024,        0);
-  vlk_buffer_t b_mlp     = vlk_create_local_buffer(1024 * 3072, 0);
-  vlk_buffer_t b_qkv     = vlk_create_local_buffer(1024 * 2304, 0);
-  vlk_buffer_t b_x0      = vlk_create_local_buffer(1024 *  768, 0);
-  vlk_buffer_t b_x1      = vlk_create_local_buffer(1024 *  768, 0);
-  vlk_buffer_t b_x2      = vlk_create_local_buffer(1024 *  768, 0);
+  vlk_buffer_t b_amax0   = vlk_create_local_buffer(  256,        0);
+  vlk_buffer_t b_h       = vlk_create_local_buffer( 1024 * 1024, 0);
+  vlk_buffer_t b_lmean   = vlk_create_local_buffer( 1024,        0);
+  vlk_buffer_t b_logit   = vlk_create_local_buffer(50257,        0);
+  vlk_buffer_t b_lvari   = vlk_create_local_buffer( 1024,        0);
+  vlk_buffer_t b_mlp     = vlk_create_local_buffer( 1024 * 3072, 0);
+  vlk_buffer_t b_qkv     = vlk_create_local_buffer( 1024 * 2304, 0);
+  vlk_buffer_t b_x0      = vlk_create_local_buffer( 1024 *  768, 0);
+  vlk_buffer_t b_x1      = vlk_create_local_buffer( 1024 *  768, 0);
+  vlk_buffer_t b_x2      = vlk_create_local_buffer( 1024 *  768, 0);
   //}}}
 
   //{{{ pipelines
@@ -1054,12 +1055,12 @@ int main() {
   //{{{ next token
 
   //{{{ logit
-  dispatch(p_logit, 50257, 1, 1, B(b_wte), b_x1, b_x0, b_indir);
+  dispatch(p_logit, 50257, 1, 1, B(b_wte), b_x1, b_logit, b_indir);
   //}}}
 
   //{{{ argmax (i.e. next token) directly into input
-  dispatch(p_amax0, 256, 1, 1, b_x0, b_amax0);
-  dispatch(p_amax1,   1, 1, 1, b_x0, b_amax0, b_input, b_indir);
+  dispatch(p_amax0, 256, 1, 1, b_logit, b_amax0);
+  dispatch(p_amax1,   1, 1, 1, b_logit, b_amax0, b_input, b_indir);
   //}}}
 
   vlk_end_command_buffer(cb);
