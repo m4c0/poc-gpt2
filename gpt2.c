@@ -1100,3 +1100,5 @@ int main() {
 
   vlk_deinit();
 }
+
+// vim:fdm=marker
