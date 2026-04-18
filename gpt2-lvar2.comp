@@ -1,0 +1,24 @@
+#version 450
+
+layout(set = 0, binding=0) readonly buffer b0 { float x[]; };
+layout(set = 1, binding=0) readonly buffer b1 { float m[]; };
+layout(set = 2, binding=0)          buffer b2 { float tmp[]; };
+layout(set = 3, binding=0) readonly buffer b3 { uint indir[]; };
+
+// pos and size are (row,col), like safetensors use
+uint tensor2d_pos(uvec2 pos, uvec2 sz) {
+  // This is confusing to implement, so it gets easier to use
+  uint x = pos.y;
+  uint y = pos.x;
+  uint w = sz.y;
+  return x + y * w;
+}
+#define T(t, p, s0, s1) t[tensor2d_pos(p, uvec2(s0, s1))]
+
+void main() {
+  uint id = indir[0] - 1;
+  uvec2 pos = uvec2(id, gl_GlobalInvocationID.y);
+  float mean = m[id] / 768;
+  float xi = T(x, pos, 1024, 768);
+  T(tmp, pos, 1024, 768) = (xi - mean) * (xi - mean);
+}

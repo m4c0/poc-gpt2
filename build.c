@@ -104,11 +104,14 @@ int main(int argc, char ** argv) {
   if (shader("gpt2-embed.comp")) return 1;
   if (shader("gpt2-lnear.comp")) return 1;
   if (shader("gpt2-lnorm.comp")) return 1;
+  if (shader("gpt2-lnrm2.comp")) return 1;
   if (shader("gpt2-logit.comp")) return 1;
   if (shader("gpt2-lvari.comp")) return 1;
+  if (shader("gpt2-lvar2.comp")) return 1;
   if (shader("gpt2-pgelu.comp")) return 1;
   if (shader("gpt2-plsum.comp")) return 1;
   if (shader("gpt2-psmax.comp")) return 1;
+  if (shader("gpt2-psum2.comp")) return 1;
   if (shader("gpt2-smaxv.comp")) return 1;
 
   if (compile("vocab"     )) return 1;

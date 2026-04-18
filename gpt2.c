@@ -952,6 +952,7 @@ int main() {
   vlk_buffer_t b_x0      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x1      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x2      = vlk_create_local_buffer( 1024 *  768, 0);
+  vlk_buffer_t b_xtmp    = vlk_create_local_buffer( 1024 *  768, 0);
   //}}}
 
   //{{{ pipelines
@@ -962,11 +963,14 @@ int main() {
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_lnear = vlk_create_pipeline("gpt2-lnear.comp.spv", 4, 4);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
+  vlk_ppl_t p_lnrm2 = vlk_create_pipeline("gpt2-lnrm2.comp.spv", 7, 0);
   vlk_ppl_t p_logit = vlk_create_pipeline("gpt2-logit.comp.spv", 4, 4);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
+  vlk_ppl_t p_lvar2 = vlk_create_pipeline("gpt2-lvar2.comp.spv", 4, 0);
   vlk_ppl_t p_pgelu = vlk_create_pipeline("gpt2-pgelu.comp.spv", 1, 0);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
+  vlk_ppl_t p_psum2 = vlk_create_pipeline("gpt2-psum2.comp.spv", 3, 0);
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
   //}}}
 
@@ -980,6 +984,9 @@ int main() {
 
   cb = alloc();
   vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
+
+  bind(cb, p_embed, B(b_wte), B(b_wpe), b_input, b_x0);
+  vkCmdDispatchIndirect(cb, b_indir.buf, di_768 * sizeof(VkDispatchIndirectCommand));
   submit(cb);
   //}}}
 
@@ -998,8 +1005,8 @@ int main() {
   for (int i = 0; i < 12; i++) {
     //{{{ normalisation 1
     dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
-    dispatch_i(p_plsum, di_1,   b_x2, b_lvari);
+    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
     dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
     //}}}
 
@@ -1046,10 +1053,10 @@ int main() {
   //}}}
 
   //{{{ final normalisation
-  dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-  dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
-  dispatch_i(p_plsum, di_1,   b_x2, b_lvari);
-  dispatch_i(p_lnorm, di_768, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1);
+  dispatch(p_psum2, 1,   1, 1, b_x0, b_lmean, b_indir);
+  dispatch(p_lvar2, 1, 768, 1, b_x0, b_lmean, b_x2, b_indir);
+  dispatch(p_psum2, 1,   1, 1, b_x2, b_lvari, b_indir);
+  dispatch(p_lnrm2, 1, 768, 1, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1, b_indir);
   //}}}
 
   //{{{ next token
