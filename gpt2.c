@@ -18,6 +18,23 @@
 
 const char * text = "What's the capital of France?";
 
+// TODO: add temperature
+// TODO: add penalty for repeating tokens
+// TODO: add KV-cache
+// TODO: print tokens inside loop and measure performance
+
+// Note: temperature is about
+// 1. Divide logits (ie x0) by a number between 1 and 0 (when close to "0",
+//    it is the same as "argmax"
+// 2. Softmax result of "1" to create a percentage that adds to 1.0
+// 3. Pick a random number between 0 and 1 and check it against "2"
+
+// Note: penalty for repeating tokens is a matter of subtractring weights of
+// logits for tokens that were previously used
+
+// Note: KV-cache might improve the speed but it might also nuke the clarity
+// of the code
+
 //{{{ [utl] Utilities
 //====================
 
@@ -811,6 +828,8 @@ static void tbf_load_tr_tensor(tbf_list_t l, const char * name, unsigned s0, uns
 
 //}}}
 
+//{{{ uncategorised utils
+
 static VkCommandBuffer alloc() {
   VkCommandBuffer cb = vlk_allocate_command_buffer();
   vlk_begin_command_buffer(cb);
@@ -876,6 +895,8 @@ static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, ...) {
 #define B(X) X.data[0]
 #define L(X, N) X.data[N]
 
+//}}}
+
 int main() {
   vlk_init();
   byt_init();
@@ -883,6 +904,7 @@ int main() {
   enc_init();
   sft_init();
 
+  //{{{ buffers + tensors
   vlk_buffer_t b_input = vlk_create_host_buffer(1024, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
   tbf_list_t b_cattn_b = tbf_create_tensor_param_buffers(12,  2304,    0);
@@ -929,7 +951,9 @@ int main() {
   vlk_buffer_t b_x0      = vlk_create_local_buffer(1024 *  768, 0);
   vlk_buffer_t b_x1      = vlk_create_local_buffer(1024 *  768, 0);
   vlk_buffer_t b_x2      = vlk_create_local_buffer(1024 *  768, 0);
+  //}}}
 
+  //{{{ pipelines
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
   vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
   vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 4, 4);
@@ -943,14 +967,13 @@ int main() {
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
+  //}}}
 
   //--- Load input buffer
 
   tkn_ids_t ts = tkn_encode(text);
 
   vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
-
-  //--- Embedding
 
   VkCommandBuffer cb;
   cb = alloc();
@@ -962,20 +985,22 @@ int main() {
   vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
+  //{{{ gpt-2 main loop
+
+  //{{{ embedding
   dispatch_i(p_embed, di_768, B(b_wte), B(b_wpe), b_input, b_x0);
+  //}}}
 
-  //--- Transform
+  //{{{ transform
   for (int i = 0; i < 12; i++) {
-
-    // Normalisation 1
-
+    //{{{ normalisation 1
     dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
     dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
     dispatch_i(p_plsum, di_1,   b_x2, b_lvari);
     dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
+    //}}}
 
-    // Multi-head attention - linear
-
+    //{{{ multi-head attention
     push_k(p_lnear, 768);
     dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
 
@@ -991,73 +1016,62 @@ int main() {
 
     push_k(p_lnear, 768);
     dispatch_i(p_lnear, di_768, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
+    //}}}
 
-    // Add residue
-
+    //{{{ residue
     dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    //}}}
 
-    // Normalization 2
-
+    //{{{ normalization 2
     dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
     dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
     dispatch_i(p_plsum, di_1,   b_x2, b_lvari);
     dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
+    //}}}
 
-    // Multi-layer perceptron
-
+    //{{{ multi-layer perceptron
     dispatch_i(p_lnear, di_3072, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
     dispatch_i(p_pgelu, di_3072, b_mlp);
     push_k(p_lnear, 3072);
     dispatch_i(p_lnear, di_768, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
+    //}}}
 
-    // Add residue
-
-   dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    //{{{ residue
+    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    //}}}
   }
+  //}}}
 
-  //--- Final normalisation
-
+  //{{{ final normalisation
   dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
   dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
   dispatch_i(p_plsum, di_1,   b_x2, b_lvari);
   dispatch_i(p_lnorm, di_768, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1);
+  //}}}
 
-  //--- Next logit
+  //{{{ next token
 
+  //{{{ logit
   dispatch(p_logit, 50257, 1, 1, B(b_wte), b_x1, b_x0, b_indir);
+  //}}}
 
-  //--- Argmax (i.e. next token) directly into input
-
+  //{{{ argmax (i.e. next token) directly into input
   dispatch(p_amax0, 256, 1, 1, b_x0, b_amax0);
   dispatch(p_amax1,   1, 1, 1, b_x0, b_amax0, b_input, b_indir);
+  //}}}
 
   vlk_end_command_buffer(cb);
+  //}}}
 
-  //--- Generate N tokens
+  //}}}
 
+  //{{{ generate N tokens
   int count = 0;
   for (; count < 12; count++) vlk_submit(cb);
   vkDeviceWaitIdle(vlk_dev);
+  //}}}
 
-  // TODO: add temperature
-  // TODO: add penalty for repeating tokens
-  // TODO: add KV-cache
-  // TODO: print tokens inside loop and measure performance
-
-  // Note: temperature is about
-  // 1. Divide logits (ie x0) by a number between 1 and 0 (when close to "0",
-  //    it is the same as "argmax"
-  // 2. Softmax result of "1" to create a percentage that adds to 1.0
-  // 3. Pick a random number between 0 and 1 and check it against "2"
-
-  // Note: penalty for repeating tokens is a matter of subtractring weights of
-  // logits for tokens that were previously used
-  
-  // Note: KV-cache might improve the speed but it might also nuke the clarity
-  // of the code
-
-  //--- Load tokens from GPU and print final text
-
+  //{{{ load tokens from GPU and print final text
   ts.sz += count;
 
   unsigned * t;
@@ -1069,18 +1083,18 @@ int main() {
   char * buf = calloc(10240, 1);
   tkn_decode(ts, buf, 10240);
   printf("%s\n", buf);
+  //}}}
 
-  //--- Dump timings
-
+  //{{{ dump timings
   uint64_t data[1024];
-  _(vkGetQueryPoolResults(vlk_dev, vlk_qpool, 0,
-        qp, sizeof(data), data, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
+  _(vkGetQueryPoolResults(vlk_dev, vlk_qpool, 0, qp, sizeof(data), data, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
   for (int i = 1; i < qp; i++) {
     int64_t d = data[i] - data[i - 1];
     if (d < 100000) continue; // Only the slowest
     printf("%4d -- %12lld\n", i, d);
   }
   printf(" Total: %12lld\n", data[qp - 1] - data[0]);
+  //}}}
 
   vlk_deinit();
 }
