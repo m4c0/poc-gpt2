@@ -1034,8 +1034,8 @@ int main() {
 
     //{{{ normalization 2
     dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_x2);
-    dispatch_i(p_plsum, di_1,   b_x2, b_lvari);
+    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
     dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
     //}}}
 
@@ -1054,8 +1054,8 @@ int main() {
 
   //{{{ final normalisation
   dispatch(p_psum2, 1,   1, 1, b_x0, b_lmean, b_indir);
-  dispatch(p_lvar2, 1, 768, 1, b_x0, b_lmean, b_x2, b_indir);
-  dispatch(p_psum2, 1,   1, 1, b_x2, b_lvari, b_indir);
+  dispatch(p_lvar2, 1, 768, 1, b_x0, b_lmean, b_xtmp, b_indir);
+  dispatch(p_psum2, 1,   1, 1, b_xtmp, b_lvari, b_indir);
   dispatch(p_lnrm2, 1, 768, 1, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1, b_indir);
   //}}}
 
