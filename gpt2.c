@@ -969,23 +969,25 @@ int main() {
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
   //}}}
 
-  //--- Load input buffer
+  VkCommandBuffer cb;
+
+  //{{{ load input buffer
 
   tkn_ids_t ts = tkn_encode(text);
 
   vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
 
-  VkCommandBuffer cb;
   cb = alloc();
   vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
   submit(cb);
+  //}}}
+
+  //{{{ gpt-2 main loop
 
   cb = alloc();
   int qp = 0;
   vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
   vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
-
-  //{{{ gpt-2 main loop
 
   //{{{ embedding
   dispatch_i(p_embed, di_768, B(b_wte), B(b_wpe), b_input, b_x0);
