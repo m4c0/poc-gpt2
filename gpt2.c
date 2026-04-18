@@ -902,10 +902,10 @@ int main() {
   tbf_list_t b_wpe     = tbf_create_tensor_param_buffers( 1,  1024,  768);
   tbf_list_t b_wte     = tbf_create_tensor_param_buffers( 1, 50257,  768);
 
-  tbf_load_tensor(b_wte.data[0], "wte.weight", 50257, 768, 0, 0);
-  tbf_load_tensor(b_wpe.data[0], "wpe.weight", 1024, 768, 0, 0);
-  tbf_load_tensor(b_lnfw.data[0], "ln_f.weight", 768, 0, 0, 0);
-  tbf_load_tensor(b_lnfb.data[0], "ln_f.bias",   768, 0, 0, 0);
+  tbf_load_tensor(b_wte .data[0], "wte.weight",  50257, 768, 0, 0);
+  tbf_load_tensor(b_wpe .data[0], "wpe.weight",   1024, 768, 0, 0);
+  tbf_load_tensor(b_lnfw.data[0], "ln_f.weight",   768,   0, 0, 0);
+  tbf_load_tensor(b_lnfb.data[0], "ln_f.bias",     768,   0, 0, 0);
 
   tbf_load_tr_tensor(b_ln1w,    "ln_1.weight",         768,    0, 0, 0);
   tbf_load_tr_tensor(b_ln1b,    "ln_1.bias",           768,    0, 0, 0);
