@@ -237,7 +237,7 @@ static void enc_init() {
     for (char * p = ptr; *p && *p != '"'; p++, ksz++) {
       if (*p == '\\') p++;
     }
-    wchar_t * key = calloc(ksz, sizeof(wchar_t));
+    wchar_t * key = calloc(ksz + 1, sizeof(wchar_t));
 
     wchar_t * k = key;
     while (*ptr && *ptr != '"') {
