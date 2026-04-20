@@ -1,6 +1,7 @@
 # poc-gpt2
 
-Dissecting GPT2
+Dissecting GPT2. Currently contains the encoder (i.e. the token generation
+loop).
 
 Code:
 * `build.c` - builder
