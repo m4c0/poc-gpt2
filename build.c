@@ -118,6 +118,7 @@ int main(int argc, char ** argv) {
   if (compile("safetensor")) return 1;
   if (compile("vulkan"    )) return 1;
   if (compile("gpt2"      )) return 1;
+  if (compile("gpt2-naive")) return 1;
 
   return 0;
 }

@@ -4,9 +4,11 @@ Dissecting GPT2. Currently contains the encoder (i.e. the token generation
 loop).
 
 Code:
-* `build.c` - builder
-* `gpt2.c` - self-contained implementation
-* `*.comp` - compute shaders written in GLSL
+* `build.c`      - builder
+* `gpt2.c`       - self-contained implementation
+* `gpt2-naive.c` - self-contained implementation, without optimisations (should
+                   be easier to read)
+* `*.comp`       - compute shaders written in GLSL
 
 Code of how certain bits work:
 * `vocab.c`      - tokenisation
