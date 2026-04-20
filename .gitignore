@@ -1,8 +1,6 @@
-build
-gpt2
-safetensor
-vocab
-vulkan
+*
+!*.*
+
 *.pdb
 *.bpe
 *.ckpt.*
@@ -12,3 +10,4 @@ vulkan
 *.safetensors
 *.dylib
 *.spv
+*.swp
