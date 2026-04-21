@@ -884,12 +884,10 @@ static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, ...) {
 #define dispatch(ppl, d1, d2, d3, ...) do {                                       \
   bind(cb, ppl, __VA_ARGS__);                                                     \
   vkCmdDispatch(cb, d1, d2, d3);                                                  \
-  vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++); \
 } while (0);
 #define dispatch_i(ppl, di, ...) do {                                             \
   bind(cb, ppl, __VA_ARGS__);                                                     \
   vkCmdDispatchIndirect(cb, b_indir.buf, di * sizeof(VkDispatchIndirectCommand)); \
-  vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++); \
 } while (0);
 
 #define B(X) X.data[0]
@@ -993,9 +991,6 @@ int main() {
   //{{{ gpt-2 main loop
 
   cb = alloc();
-  int qp = 0;
-  vkCmdResetQueryPool(cb, vlk_qpool, 0, 1024);
-  vkCmdWriteTimestamp(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, vlk_qpool, qp++);
 
   //{{{ embedding
   dispatch_i(p_embed, di_768, B(b_wte), B(b_wpe), b_input, b_x0);
@@ -1093,17 +1088,6 @@ int main() {
   char * buf = calloc(10240, 1);
   tkn_decode(ts, buf, 10240);
   printf("%s\n", buf);
-  //}}}
-
-  //{{{ dump timings
-  uint64_t data[1024];
-  _(vkGetQueryPoolResults(vlk_dev, vlk_qpool, 0, qp, sizeof(data), data, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
-  for (int i = 1; i < qp; i++) {
-    int64_t d = data[i] - data[i - 1];
-    if (d < 100000) continue; // Only the slowest
-    printf("%4d -- %12lld\n", i, d);
-  }
-  printf(" Total: %12lld\n", data[qp - 1] - data[0]);
   //}}}
 
   vlk_deinit();
