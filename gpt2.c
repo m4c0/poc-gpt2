@@ -988,6 +988,59 @@ int main() {
 
   bind(cb, p_embed, B(b_wte), B(b_wpe), b_input, b_x0);
   vkCmdDispatchIndirect(cb, b_indir.buf, di_768 * sizeof(VkDispatchIndirectCommand));
+
+  //{{{ pre-fill transform
+  // This is responsible for pre-calculate the QKV of all layers based on the
+  // embedding buffers
+  for (int i = 0; i < 12; i++) {
+    //{{{ normalisation 1
+    dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
+    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
+    dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
+    //}}}
+
+    //{{{ multi-head attention
+    push_k(p_lnear, 768);
+    dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i]);
+
+    for (unsigned head = 0; head < 12; head++) {
+      // b_qkv contains all data for Q, followed by K, followed by V Then each of
+      // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
+      // 12 to be 64 per head
+      push_k(p_atscr, head);
+      dispatch_i(p_atscr, di_1024, b_qkv[i], b_h);
+      dispatch_i(p_psmax, di_1,    b_h, b_h);
+      dispatch_i(p_smaxv, di_64,   b_h, b_qkv[i], b_x2);
+    }
+
+    push_k(p_lnear, 768);
+    dispatch_i(p_lnear, di_768, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
+    //}}}
+
+    //{{{ residue
+    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    //}}}
+
+    //{{{ normalization 2
+    dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
+    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
+    dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
+    //}}}
+
+    //{{{ multi-layer perceptron
+    dispatch_i(p_lnear, di_3072, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
+    dispatch_i(p_pgelu, di_3072, b_mlp);
+    push_k(p_lnear, 3072);
+    dispatch_i(p_lnear, di_768, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
+    //}}}
+
+    //{{{ residue
+    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    //}}}
+  }
+  //}}}
   submit(cb);
   //}}}
 
@@ -1011,7 +1064,6 @@ int main() {
     //{{{ multi-head attention
     push_k(p_lnear, 768);
     dispatch(p_line2, 1, 2304, 1, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i], b_indir);
-    //dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i]);
 
     for (unsigned head = 0; head < 12; head++) {
       // b_qkv contains all data for Q, followed by K, followed by V Then each of
