@@ -946,11 +946,13 @@ int main() {
   vlk_buffer_t b_logit   = vlk_create_local_buffer(50257,        0);
   vlk_buffer_t b_lvari   = vlk_create_local_buffer( 1024,        0);
   vlk_buffer_t b_mlp     = vlk_create_local_buffer( 1024 * 3072, 0);
-  vlk_buffer_t b_qkv     = vlk_create_local_buffer( 1024 * 2304, 0);
   vlk_buffer_t b_x0      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x1      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x2      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_xtmp    = vlk_create_local_buffer( 1024 *  768, 0);
+
+  vlk_buffer_t b_qkv[12];
+  for (int i = 0; i < 12; i++) b_qkv[i] = vlk_create_local_buffer(1024 * 2304, 0);
   //}}}
 
   //{{{ pipelines
@@ -1007,16 +1009,16 @@ int main() {
 
     //{{{ multi-head attention
     push_k(p_lnear, 768);
-    dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv);
+    dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i]);
 
     for (unsigned head = 0; head < 12; head++) {
       // b_qkv contains all data for Q, followed by K, followed by V Then each of
       // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
       // 12 to be 64 per head
       push_k(p_atscr, head);
-      dispatch_i(p_atscr, di_1024, b_qkv, b_h);
+      dispatch_i(p_atscr, di_1024, b_qkv[i], b_h);
       dispatch_i(p_psmax, di_1,    b_h, b_h);
-      dispatch_i(p_smaxv, di_64,   b_h, b_qkv, b_x2);
+      dispatch_i(p_smaxv, di_64,   b_h, b_qkv[i], b_x2);
     }
 
     push_k(p_lnear, 768);
