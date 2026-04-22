@@ -961,6 +961,7 @@ int main() {
   vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 4, 4);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
+  vlk_ppl_t p_line2 = vlk_create_pipeline("gpt2-line2.comp.spv", 5, 4);
   vlk_ppl_t p_lnear = vlk_create_pipeline("gpt2-lnear.comp.spv", 4, 4);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
   vlk_ppl_t p_lnrm2 = vlk_create_pipeline("gpt2-lnrm2.comp.spv", 7, 0);
@@ -1009,7 +1010,8 @@ int main() {
 
     //{{{ multi-head attention
     push_k(p_lnear, 768);
-    dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i]);
+    dispatch(p_line2, 1, 2304, 1, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i], b_indir);
+    //dispatch_i(p_lnear, di_2304, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i]);
 
     for (unsigned head = 0; head < 12; head++) {
       // b_qkv contains all data for Q, followed by K, followed by V Then each of
