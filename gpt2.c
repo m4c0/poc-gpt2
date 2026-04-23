@@ -1061,10 +1061,10 @@ int main() {
   // incrementally by modifying only the last row.
   for (int i = 0; i < 12; i++) {
     //--- normalisation 1
-    dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
-    dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
-    dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
-    dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_xinp, b_x1);
+    dispatch(p_psum2, 1,   1, 1, b_xinp, b_lmean, b_indir);
+    dispatch(p_lvar2, 1, 768, 1, b_xinp, b_lmean, b_xtmp, b_indir);
+    dispatch(p_psum2, 1,   1, 1, b_xtmp, b_lvari, b_indir);
+    dispatch(p_lnrm2, 1, 768, 1, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_xinp, b_x1, b_indir);
 
     //--- multi-head attention
     push_k(p_line2, 768);
@@ -1084,10 +1084,10 @@ int main() {
     dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
 
     //--- normalization 2
-    dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
-    dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
-    dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
-    dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_xinp, b_x1);
+    dispatch(p_psum2, 1,   1, 1, b_xinp, b_lmean, b_indir);
+    dispatch(p_lvar2, 1, 768, 1, b_xinp, b_lmean, b_xtmp, b_indir);
+    dispatch(p_psum2, 1,   1, 1, b_xtmp, b_lvari, b_indir);
+    dispatch(p_lnrm2, 1, 768, 1, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_xinp, b_x1, b_indir);
 
     //--- multi-layer perceptron
     dispatch_i(p_lnear, di_3072, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
