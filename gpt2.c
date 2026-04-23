@@ -961,6 +961,7 @@ int main() {
   vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 4, 4);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_atsc2 = vlk_create_pipeline("gpt2-atsc2.comp.spv", 3, 4);
+  vlk_ppl_t p_embd2 = vlk_create_pipeline("gpt2-embd2.comp.spv", 5, 0);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_gelu2 = vlk_create_pipeline("gpt2-gelu2.comp.spv", 2, 0);
   vlk_ppl_t p_line2 = vlk_create_pipeline("gpt2-line2.comp.spv", 5, 4);
@@ -1047,7 +1048,7 @@ int main() {
   cb = alloc();
 
   //{{{ embedding
-  dispatch_i(p_embed, di_768, B(b_wte), B(b_wpe), b_input, b_xinp);
+  dispatch(p_embd2, 1, 768, 1, B(b_wte), B(b_wpe), b_input, b_xinp, b_indir);
   //}}}
 
   //{{{ transform
