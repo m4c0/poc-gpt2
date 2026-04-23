@@ -975,7 +975,7 @@ int main() {
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
   vlk_ppl_t p_psum2 = vlk_create_pipeline("gpt2-psum2.comp.spv", 3, 0);
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
-  vlk_ppl_t p_smax2 = vlk_create_pipeline("gpt2-smax2.comp.spv", 2, 0);
+  vlk_ppl_t p_smax2 = vlk_create_pipeline("gpt2-smax2.comp.spv", 2, 4);
   vlk_ppl_t p_smxv2 = vlk_create_pipeline("gpt2-smxv2.comp.spv", 4, 4);
   //}}}
 

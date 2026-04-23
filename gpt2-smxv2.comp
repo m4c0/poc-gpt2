@@ -11,14 +11,15 @@ layout(set = 3, binding=0) readonly buffer b3 { uint  indir[]; };
 
 void main() {
   uint id = indir[0] - 1;
+  uint head = pc.head;
 
   float n = 0;
   for (int i = 0; i <= id; i++) {
-    uint si = i;
-    uint vi = i * 2304 + gl_GlobalInvocationID.y + 768*2 + pc.head*64;
+    uint si = i + head * 1024;
+    uint vi = i * 2304 + gl_GlobalInvocationID.y + 768*2 + head*64;
     n += smax[si] * qkv[vi];
   }
 
-  uint yi = id * 768 + gl_GlobalInvocationID.y + pc.head*64;
+  uint yi = id * 768 + gl_GlobalInvocationID.y + head*64;
   y[yi] = n;
 }

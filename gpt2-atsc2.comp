@@ -11,14 +11,15 @@ layout(set = 2, binding=0) readonly buffer b2 { uint  indir[]; };
 // q @ k.T / sqrt(64) + mask
 void main() {
   uint id = indir[0] - 1;
+  uint head = pc.head;
 
   float n = 0;
   for (int i = 0; i < 64; i++) {
-    uint qi = id * 2304 + i + pc.head*64;
-    uint ki = gl_GlobalInvocationID.y * 2304 + i + 768 + pc.head*64;
+    uint qi = id * 2304 + i + head*64;
+    uint ki = gl_GlobalInvocationID.y * 2304 + i + 768 + head*64;
     n += qkv[qi] * qkv[ki];
   }
 
-  uint yi = gl_GlobalInvocationID.y;
+  uint yi = gl_GlobalInvocationID.y + head * 1024;
   y[yi] = n / sqrt(64);
 }
