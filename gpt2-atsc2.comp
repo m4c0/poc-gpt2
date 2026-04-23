@@ -20,6 +20,5 @@ void main() {
   }
 
   uint yi = id * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
-  float mask = id < gl_GlobalInvocationID.y ? 1e10 : 0;
-  y[yi] = n / sqrt(64) - mask;
+  y[yi] = n / sqrt(64);
 }
