@@ -1072,15 +1072,12 @@ int main() {
     push_k(p_line2, 768);
     dispatch(p_line2, 1, 2304, 1, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i], b_indir);
 
-    for (unsigned head = 0; head < 12; head++) {
-      // b_qkv contains all data for Q, followed by K, followed by V Then each of
-      // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
-      // 12 to be 64 per head
-      push_k(p_atscr, head);
-      dispatch(p_atsc2, 1, 1024, 1, b_qkv[i], b_h, b_indir);
-      dispatch(p_smax2, 1,    1, 1, b_h, b_indir);
-      dispatch(p_smxv2, 1,   64, 1, b_h, b_qkv[i], b_x2, b_indir);
-    }
+    // b_qkv contains all data for Q, followed by K, followed by V Then each of
+    // QKV is split into heads (12). Or: split 2304 into 3, then each 768 into
+    // 12 to be 64 per head
+    dispatch(p_atsc2, 1, 1024, 12, b_qkv[i], b_h, b_indir);
+    dispatch(p_smax2, 1,    1, 12, b_h, b_indir);
+    dispatch(p_smxv2, 1,   64, 12, b_h, b_qkv[i], b_x2, b_indir);
 
     push_k(p_line2, 768);
     dispatch(p_line2, 1, 768, 1, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1, b_indir);

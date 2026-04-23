@@ -1,9 +1,5 @@
 #version 450
 
-layout(push_constant) uniform upc {
-  uint head;
-} pc;
-
 layout(set=0, binding=0)          buffer in0 { float h    []; };
 layout(set=1, binding=0) readonly buffer in1 { uint  indir[]; };
 
@@ -15,7 +11,7 @@ shared float y[1024];
 void main() {
   uint id = indir[0] - 1;
   uint lid = gl_LocalInvocationID.y;
-  uint hid = pc.head * 1024 + lid;
+  uint hid = gl_GlobalInvocationID.z * 1024 + lid;
 
   x[lid] = h[hid];
   memoryBarrierShared();

@@ -1,9 +1,5 @@
 #version 450
 
-layout(push_constant) uniform upc {
-  uint head;
-} pc;
-
 layout(set = 0, binding=0) readonly buffer b0 { float qkv[]; };
 layout(set = 1, binding=0)          buffer b1 { float y[]; };
 layout(set = 2, binding=0) readonly buffer b2 { uint  indir[]; };
@@ -11,7 +7,7 @@ layout(set = 2, binding=0) readonly buffer b2 { uint  indir[]; };
 // q @ k.T / sqrt(64) + mask
 void main() {
   uint id = indir[0] - 1;
-  uint head = pc.head;
+  uint head = gl_GlobalInvocationID.z;
 
   float n = 0;
   for (int i = 0; i < 64; i++) {
