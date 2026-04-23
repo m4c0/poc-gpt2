@@ -1061,14 +1061,13 @@ int main() {
   // the "decoder-only" nature of GPT-2, that input layer can be updated
   // incrementally by modifying only the last row.
   for (int i = 0; i < 12; i++) {
-    //{{{ normalisation 1
+    //--- normalisation 1
     dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
     dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
     dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
     dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_xinp, b_x1);
-    //}}}
 
-    //{{{ multi-head attention
+    //--- multi-head attention
     push_k(p_line2, 768);
     dispatch(p_line2, 1, 2304, 1, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i], b_indir);
 
@@ -1081,29 +1080,24 @@ int main() {
 
     push_k(p_line2, 768);
     dispatch(p_line2, 1, 768, 1, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1, b_indir);
-    //}}}
 
-    //{{{ residue
+    //--- residue
     dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
-    //}}}
 
-    //{{{ normalization 2
+    //--- normalization 2
     dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
     dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
     dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
     dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_xinp, b_x1);
-    //}}}
 
-    //{{{ multi-layer perceptron
+    //--- multi-layer perceptron
     dispatch_i(p_lnear, di_3072, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
     dispatch_i(p_pgelu, di_3072, b_mlp);
     push_k(p_lnear, 3072);
     dispatch_i(p_lnear, di_768, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
-    //}}}
 
-    //{{{ residue
+    //--- residue
     dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
-    //}}}
   }
   //}}}
 
