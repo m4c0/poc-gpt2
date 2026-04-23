@@ -14,7 +14,7 @@ void main() {
 
   float n = 0;
   for (int i = 0; i <= id; i++) {
-    uint si = id * 1024 + i;
+    uint si = i;
     uint vi = i * 2304 + gl_GlobalInvocationID.y + 768*2 + pc.head*64;
     n += smax[si] * qkv[vi];
   }

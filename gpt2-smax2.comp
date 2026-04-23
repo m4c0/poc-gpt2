@@ -11,9 +11,8 @@ shared float y[1024];
 void main() {
   uint id = indir[0] - 1;
   uint lid = gl_LocalInvocationID.y;
-  uint gid = id * 1024 + lid;
 
-  x[lid] = h[gid];
+  x[lid] = h[lid];
   memoryBarrierShared();
 
   float mx = x[0];
@@ -23,6 +22,6 @@ void main() {
 
   float sum = 0;
   for (int i = 0; i <= id; i++) sum += y[i];
-  h[gid] = y[lid] / sum;
+  h[lid] = y[lid] / sum;
 }
 

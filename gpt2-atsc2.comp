@@ -19,6 +19,6 @@ void main() {
     n += qkv[qi] * qkv[ki];
   }
 
-  uint yi = id * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
+  uint yi = gl_GlobalInvocationID.y;
   y[yi] = n / sqrt(64);
 }
