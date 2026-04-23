@@ -835,10 +835,6 @@ static VkCommandBuffer alloc() {
   vlk_begin_command_buffer(cb);
   return cb;
 }
-static void submit(VkCommandBuffer cb) {
-  vlk_end_command_buffer(cb);
-  vlk_submit(cb);
-}
 
 typedef enum di_e {
   di_1,
@@ -1041,7 +1037,8 @@ int main() {
     dispatch_i(p_add2b, di_768, b_x1, b_xinp);
   }
   //}}}
-  submit(cb);
+  vlk_end_command_buffer(cb);
+  vlk_submit(cb);
   //}}}
 
   //{{{ gpt-2 main loop
