@@ -962,6 +962,7 @@ int main() {
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
   vlk_ppl_t p_atsc2 = vlk_create_pipeline("gpt2-atsc2.comp.spv", 3, 4);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
+  vlk_ppl_t p_gelu2 = vlk_create_pipeline("gpt2-gelu2.comp.spv", 2, 0);
   vlk_ppl_t p_line2 = vlk_create_pipeline("gpt2-line2.comp.spv", 5, 4);
   vlk_ppl_t p_lnear = vlk_create_pipeline("gpt2-lnear.comp.spv", 4, 4);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
@@ -1091,7 +1092,7 @@ int main() {
 
     //--- multi-layer perceptron
     dispatch(p_line2, 1, 3072, 1, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp, b_indir);
-    dispatch_i(p_pgelu, di_3072, b_mlp);
+    dispatch(p_gelu2, 1, 3072, 1, b_mlp, b_indir);
     push_k(p_lnear, 3072);
     dispatch(p_line2, 1, 768, 1, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1, b_indir);
 
