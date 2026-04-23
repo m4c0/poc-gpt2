@@ -974,6 +974,7 @@ int main() {
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
   vlk_ppl_t p_psum2 = vlk_create_pipeline("gpt2-psum2.comp.spv", 3, 0);
   vlk_ppl_t p_smaxv = vlk_create_pipeline("gpt2-smaxv.comp.spv", 3, 4);
+  vlk_ppl_t p_smax2 = vlk_create_pipeline("gpt2-smax2.comp.spv", 2, 0);
   vlk_ppl_t p_smxv2 = vlk_create_pipeline("gpt2-smxv2.comp.spv", 4, 4);
   //}}}
 
@@ -1076,7 +1077,7 @@ int main() {
       // 12 to be 64 per head
       push_k(p_atscr, head);
       dispatch_i(p_atscr, di_1024, b_qkv[i], b_h);
-      dispatch_i(p_psmax, di_1,    b_h, b_h);
+      dispatch(p_smax2, 1, 1,  1, b_h, b_indir);
       dispatch(p_smxv2, 1, 64, 1, b_h, b_qkv[i], b_x2, b_indir);
     }
 

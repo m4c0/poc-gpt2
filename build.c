@@ -115,6 +115,7 @@ int main(int argc, char ** argv) {
   if (shader("gpt2-psmax.comp")) return 1;
   if (shader("gpt2-psum2.comp")) return 1;
   if (shader("gpt2-smaxv.comp")) return 1;
+  if (shader("gpt2-smax2.comp")) return 1;
   if (shader("gpt2-smxv2.comp")) return 1;
 
   if (compile("vocab"     )) return 1;
