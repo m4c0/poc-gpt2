@@ -948,7 +948,6 @@ int main() {
   vlk_buffer_t b_mlp     = vlk_create_local_buffer( 1024 * 3072, 0);
   vlk_buffer_t b_xinp    = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x1      = vlk_create_local_buffer( 1024 *  768, 0);
-  vlk_buffer_t b_x2      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_xtmp    = vlk_create_local_buffer( 1024 *  768, 0);
 
   vlk_buffer_t b_qkv[12];
@@ -1015,11 +1014,11 @@ int main() {
       push_k(p_atscr, head);
       dispatch_i(p_atscr, di_1024, b_qkv[i], b_h);
       dispatch_i(p_psmax, di_1,    b_h, b_h);
-      dispatch_i(p_smaxv, di_64,   b_h, b_qkv[i], b_x2);
+      dispatch_i(p_smaxv, di_64,   b_h, b_qkv[i], b_xtmp);
     }
 
     push_k(p_lnear, 768);
-    dispatch_i(p_lnear, di_768, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
+    dispatch_i(p_lnear, di_768, L(b_cproj_w, i), L(b_cproj_b, i), b_xtmp, b_x1);
     //}}}
 
     //{{{ residue
@@ -1076,10 +1075,10 @@ int main() {
     // 12 to be 64 per head
     dispatch(p_atsc2, 1, 1024, 12, b_qkv[i], b_h, b_indir);
     dispatch(p_smax2, 1,    1, 12, b_h, b_indir);
-    dispatch(p_smxv2, 1,   64, 12, b_h, b_qkv[i], b_x2, b_indir);
+    dispatch(p_smxv2, 1,   64, 12, b_h, b_qkv[i], b_xtmp, b_indir);
 
     push_k(p_line2, 768);
-    dispatch(p_line2, 1, 768, 1, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1, b_indir);
+    dispatch(p_line2, 1, 768, 1, L(b_cproj_w, i), L(b_cproj_b, i), b_xtmp, b_x1, b_indir);
 
     //--- residue
     dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
