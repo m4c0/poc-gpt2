@@ -98,6 +98,7 @@ int main(int argc, char ** argv) {
 
   if (shader("vulkan.comp"    )) return 1;
   if (shader("gpt2-add2b.comp")) return 1;
+  if (shader("gpt2-addb2.comp")) return 1;
   if (shader("gpt2-amax0.comp")) return 1;
   if (shader("gpt2-amax1.comp")) return 1;
   if (shader("gpt2-atscr.comp")) return 1;

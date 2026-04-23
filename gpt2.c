@@ -957,6 +957,7 @@ int main() {
 
   //{{{ pipelines
   vlk_ppl_t p_add2b = vlk_create_pipeline("gpt2-add2b.comp.spv", 2, 0);
+  vlk_ppl_t p_addb2 = vlk_create_pipeline("gpt2-addb2.comp.spv", 3, 0);
   vlk_ppl_t p_amax0 = vlk_create_pipeline("gpt2-amax0.comp.spv", 2, 0);
   vlk_ppl_t p_amax1 = vlk_create_pipeline("gpt2-amax1.comp.spv", 4, 4);
   vlk_ppl_t p_atscr = vlk_create_pipeline("gpt2-atscr.comp.spv", 2, 4);
@@ -1080,7 +1081,7 @@ int main() {
     //}}}
 
     //{{{ residue
-    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    dispatch(p_addb2, 1, 768, 1, b_x1, b_x0, b_indir);
     //}}}
 
     //{{{ normalization 2
@@ -1098,7 +1099,7 @@ int main() {
     //}}}
 
     //{{{ residue
-    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    dispatch(p_addb2, 1, 768, 1, b_x1, b_x0, b_indir);
     //}}}
   }
   //}}}
