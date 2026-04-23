@@ -1062,7 +1062,7 @@ int main() {
     //}}}
 
     //{{{ multi-head attention
-    push_k(p_lnear, 768);
+    push_k(p_line2, 768);
     dispatch(p_line2, 1, 2304, 1, L(b_cattn_w, i), L(b_cattn_b, i), b_x1, b_qkv[i], b_indir);
 
     for (unsigned head = 0; head < 12; head++) {
@@ -1075,8 +1075,8 @@ int main() {
       dispatch_i(p_smaxv, di_64,   b_h, b_qkv[i], b_x2);
     }
 
-    push_k(p_lnear, 768);
-    dispatch_i(p_lnear, di_768, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1);
+    push_k(p_line2, 768);
+    dispatch(p_line2, 1, 768, 1, L(b_cproj_w, i), L(b_cproj_b, i), b_x2, b_x1, b_indir);
     //}}}
 
     //{{{ residue
