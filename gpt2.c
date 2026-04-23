@@ -946,7 +946,7 @@ int main() {
   vlk_buffer_t b_logit   = vlk_create_local_buffer(50257,        0);
   vlk_buffer_t b_lvari   = vlk_create_local_buffer( 1024,        0);
   vlk_buffer_t b_mlp     = vlk_create_local_buffer( 1024 * 3072, 0);
-  vlk_buffer_t b_x0      = vlk_create_local_buffer( 1024 *  768, 0);
+  vlk_buffer_t b_xinp    = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x1      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_x2      = vlk_create_local_buffer( 1024 *  768, 0);
   vlk_buffer_t b_xtmp    = vlk_create_local_buffer( 1024 *  768, 0);
@@ -987,7 +987,7 @@ int main() {
   cb = alloc();
   vkCmdUpdateBuffer(cb, b_input.buf, 0, ts.sz * 4, ts.ids);
 
-  bind(cb, p_embed, B(b_wte), B(b_wpe), b_input, b_x0);
+  bind(cb, p_embed, B(b_wte), B(b_wpe), b_input, b_xinp);
   vkCmdDispatchIndirect(cb, b_indir.buf, di_768 * sizeof(VkDispatchIndirectCommand));
 
   //{{{ pre-fill transform
@@ -995,10 +995,10 @@ int main() {
   // embedding buffers
   for (int i = 0; i < 12; i++) {
     //{{{ normalisation 1
-    dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
+    dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
     dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
-    dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
+    dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_xinp, b_x1);
     //}}}
 
     //{{{ multi-head attention
@@ -1020,14 +1020,14 @@ int main() {
     //}}}
 
     //{{{ residue
-    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    dispatch_i(p_add2b, di_768, b_x1, b_xinp);
     //}}}
 
     //{{{ normalization 2
-    dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
+    dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
     dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
-    dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
+    dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_xinp, b_x1);
     //}}}
 
     //{{{ multi-layer perceptron
@@ -1038,7 +1038,7 @@ int main() {
     //}}}
 
     //{{{ residue
-    dispatch_i(p_add2b, di_768, b_x1, b_x0);
+    dispatch_i(p_add2b, di_768, b_x1, b_xinp);
     //}}}
   }
   //}}}
@@ -1050,16 +1050,19 @@ int main() {
   cb = alloc();
 
   //{{{ embedding
-  dispatch_i(p_embed, di_768, B(b_wte), B(b_wpe), b_input, b_x0);
+  dispatch_i(p_embed, di_768, B(b_wte), B(b_wpe), b_input, b_xinp);
   //}}}
 
   //{{{ transform
+  // At this point, b_xinp holds the "input layer" of neural network. Due to
+  // the "decoder-only" nature of GPT-2, that input layer can be updated
+  // incrementally by modifying only the last row.
   for (int i = 0; i < 12; i++) {
     //{{{ normalisation 1
-    dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
+    dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
     dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
-    dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_x0, b_x1);
+    dispatch_i(p_lnorm, di_768, L(b_ln1w, i), L(b_ln1b, i), b_lmean, b_lvari, b_xinp, b_x1);
     //}}}
 
     //{{{ multi-head attention
@@ -1081,14 +1084,14 @@ int main() {
     //}}}
 
     //{{{ residue
-    dispatch(p_addb2, 1, 768, 1, b_x1, b_x0, b_indir);
+    dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
     //}}}
 
     //{{{ normalization 2
-    dispatch_i(p_plsum, di_1,   b_x0, b_lmean);
-    dispatch_i(p_lvari, di_768, b_x0, b_lmean, b_xtmp);
+    dispatch_i(p_plsum, di_1,   b_xinp, b_lmean);
+    dispatch_i(p_lvari, di_768, b_xinp, b_lmean, b_xtmp);
     dispatch_i(p_plsum, di_1,   b_xtmp, b_lvari);
-    dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_x0, b_x1);
+    dispatch_i(p_lnorm, di_768, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_xinp, b_x1);
     //}}}
 
     //{{{ multi-layer perceptron
@@ -1099,16 +1102,16 @@ int main() {
     //}}}
 
     //{{{ residue
-    dispatch(p_addb2, 1, 768, 1, b_x1, b_x0, b_indir);
+    dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
     //}}}
   }
   //}}}
 
   //{{{ final normalisation
-  dispatch(p_psum2, 1,   1, 1, b_x0, b_lmean, b_indir);
-  dispatch(p_lvar2, 1, 768, 1, b_x0, b_lmean, b_xtmp, b_indir);
+  dispatch(p_psum2, 1,   1, 1, b_xinp, b_lmean, b_indir);
+  dispatch(p_lvar2, 1, 768, 1, b_xinp, b_lmean, b_xtmp, b_indir);
   dispatch(p_psum2, 1,   1, 1, b_xtmp, b_lvari, b_indir);
-  dispatch(p_lnrm2, 1, 768, 1, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_x0, b_x1, b_indir);
+  dispatch(p_lnrm2, 1, 768, 1, B(b_lnfw), B(b_lnfb), b_lmean, b_lvari, b_xinp, b_x1, b_indir);
   //}}}
 
   //{{{ next token
