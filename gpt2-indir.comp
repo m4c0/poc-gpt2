@@ -1,0 +1,7 @@
+#version 450
+
+layout(set = 0, binding=0) buffer b0 { uint indir[]; };
+
+void main() {
+  indir[gl_GlobalInvocationID.x * 3]++;
+}

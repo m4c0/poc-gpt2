@@ -964,6 +964,7 @@ int main() {
   vlk_ppl_t p_embd2 = vlk_create_pipeline("gpt2-embd2.comp.spv", 5, 0);
   vlk_ppl_t p_embed = vlk_create_pipeline("gpt2-embed.comp.spv", 4, 0);
   vlk_ppl_t p_gelu2 = vlk_create_pipeline("gpt2-gelu2.comp.spv", 2, 0);
+  vlk_ppl_t p_indir = vlk_create_pipeline("gpt2-indir.comp.spv", 1, 0);
   vlk_ppl_t p_line2 = vlk_create_pipeline("gpt2-line2.comp.spv", 5, 4);
   vlk_ppl_t p_lnear = vlk_create_pipeline("gpt2-lnear.comp.spv", 4, 4);
   vlk_ppl_t p_lnorm = vlk_create_pipeline("gpt2-lnorm.comp.spv", 6, 0);
@@ -1105,14 +1106,15 @@ int main() {
 
   //{{{ next token
 
-  //{{{ logit
+  //--- logit
   dispatch(p_logit, 50257, 1, 1, B(b_wte), b_x1, b_logit, b_indir);
-  //}}}
 
-  //{{{ argmax (i.e. next token) directly into input
+  //--- argmax
   dispatch(p_amax0, 256, 1, 1, b_logit, b_amax0);
   dispatch(p_amax1,   1, 1, 1, b_logit, b_amax0, b_input, b_indir);
-  //}}}
+
+  //--- update indirect buffers
+  dispatch(p_indir, di_max, 1, 1, b_indir);
 
   vlk_end_command_buffer(cb);
   //}}}

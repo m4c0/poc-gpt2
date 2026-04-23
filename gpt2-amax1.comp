@@ -3,7 +3,7 @@
 layout(set = 0, binding=0) readonly buffer b0 { float x[]; };
 layout(set = 1, binding=0) readonly buffer b1 { uint idx[]; };
 layout(set = 2, binding=0)          buffer b2 { uint y[]; };
-layout(set = 3, binding=0)          buffer b3 { uint indir[]; };
+layout(set = 3, binding=0) readonly buffer b3 { uint indir[]; };
 
 void main() {
   uint n = indir[0];
@@ -17,6 +17,4 @@ void main() {
   }
 
   y[n] = mid;
-
-  for (int i = 0; i < 6; i++) indir[i * 3] = n + 1;
 }

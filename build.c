@@ -106,6 +106,7 @@ int main(int argc, char ** argv) {
   if (shader("gpt2-embd2.comp")) return 1;
   if (shader("gpt2-embed.comp")) return 1;
   if (shader("gpt2-gelu2.comp")) return 1;
+  if (shader("gpt2-indir.comp")) return 1;
   if (shader("gpt2-line2.comp")) return 1;
   if (shader("gpt2-lnear.comp")) return 1;
   if (shader("gpt2-lnorm.comp")) return 1;
