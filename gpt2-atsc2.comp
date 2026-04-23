@@ -1,0 +1,25 @@
+#version 450
+
+layout(push_constant) uniform upc {
+  uint head;
+} pc;
+
+layout(set = 0, binding=0) readonly buffer b0 { float qkv[]; };
+layout(set = 1, binding=0)          buffer b1 { float y[]; };
+layout(set = 2, binding=0) readonly buffer b2 { uint  indir[]; };
+
+// q @ k.T / sqrt(64) + mask
+void main() {
+  uint id = indir[0] - 1;
+
+  float n = 0;
+  for (int i = 0; i < 64; i++) {
+    uint qi = id * 2304 + i + pc.head*64;
+    uint ki = gl_GlobalInvocationID.y * 2304 + i + 768 + pc.head*64;
+    n += qkv[qi] * qkv[ki];
+  }
+
+  uint yi = id * gl_NumWorkGroups.y + gl_GlobalInvocationID.y;
+  float mask = id < gl_GlobalInvocationID.y ? 1e10 : 0;
+  y[yi] = n / sqrt(64) - mask;
+}
