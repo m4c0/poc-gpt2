@@ -1,0 +1,24 @@
+#version 450
+
+layout(push_constant) uniform upc {
+  uint head;
+} pc;
+
+layout(set = 0, binding=0) readonly buffer b0 { float smax []; };
+layout(set = 1, binding=0) readonly buffer b1 { float qkv  []; };
+layout(set = 2, binding=0)          buffer b2 { float y    []; };
+layout(set = 3, binding=0) readonly buffer b3 { uint  indir[]; };
+
+void main() {
+  uint id = indir[0] - 1;
+
+  float n = 0;
+  for (int i = 0; i < 1024; i++) {
+    uint si = id * 1024 + i;
+    uint vi = i * 2304 + gl_GlobalInvocationID.y + 768*2 + pc.head*64;
+    n += smax[si] * qkv[vi];
+  }
+
+  uint yi = id * 768 + gl_GlobalInvocationID.y + pc.head*64;
+  y[yi] = n;
+}
