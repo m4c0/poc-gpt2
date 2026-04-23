@@ -1090,10 +1090,10 @@ int main() {
     dispatch(p_lnrm2, 1, 768, 1, L(b_ln2w, i), L(b_ln2b, i), b_lmean, b_lvari, b_xinp, b_x1, b_indir);
 
     //--- multi-layer perceptron
-    dispatch_i(p_lnear, di_3072, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp);
+    dispatch(p_line2, 1, 3072, 1, L(b_mlpcf_w, i), L(b_mlpcf_b, i), b_x1, b_mlp, b_indir);
     dispatch_i(p_pgelu, di_3072, b_mlp);
     push_k(p_lnear, 3072);
-    dispatch_i(p_lnear, di_768, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1);
+    dispatch(p_line2, 1, 768, 1, L(b_mlpcp_w, i), L(b_mlpcp_b, i), b_mlp, b_x1, b_indir);
 
     //--- residue
     dispatch(p_addb2, 1, 768, 1, b_x1, b_xinp, b_indir);
