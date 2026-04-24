@@ -1127,7 +1127,7 @@ int main() {
 
   //{{{ generate N tokens
   int count = 0;
-  for (; count < 12; count++) vlk_submit(cb);
+  for (; count < 512; count++) vlk_submit(cb);
   vkDeviceWaitIdle(vlk_dev);
   //}}}
 
