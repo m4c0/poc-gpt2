@@ -1,0 +1,12 @@
+#version 450
+
+layout(set = 0, binding=0) readonly buffer b0 { uint  tkns  []; };
+layout(set = 1, binding=0)          buffer b1 { float logit []; };
+layout(set = 2, binding=0) readonly buffer b2 { uint  indir []; };
+
+void main() {
+  uint n = indir[0] - 1;
+  for (uint i = 0; i <= n; i++) {
+    logit[tkns[i]] -= 2.0;
+  }
+}

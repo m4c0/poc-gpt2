@@ -968,6 +968,7 @@ int main() {
   vlk_ppl_t p_logit = vlk_create_pipeline("gpt2-logit.comp.spv", 4, 4);
   vlk_ppl_t p_lvari = vlk_create_pipeline("gpt2-lvari.comp.spv", 3, 0);
   vlk_ppl_t p_lvar2 = vlk_create_pipeline("gpt2-lvar2.comp.spv", 4, 0);
+  vlk_ppl_t p_penlt = vlk_create_pipeline("gpt2-penlt.comp.spv", 3, 0);
   vlk_ppl_t p_pgelu = vlk_create_pipeline("gpt2-pgelu.comp.spv", 1, 0);
   vlk_ppl_t p_plsum = vlk_create_pipeline("gpt2-plsum.comp.spv", 2, 0);
   vlk_ppl_t p_psmax = vlk_create_pipeline("gpt2-psmax.comp.spv", 2, 0);
@@ -1105,6 +1106,12 @@ int main() {
 
   //--- logit
   dispatch(p_logit, 50257, 1, 1, B(b_wte), b_x1, b_logit, b_indir);
+
+  //--- repetition penalty
+  // If you remove this line, the LLM will tend to repeat the same
+  // tokens/phrases over and over (example: "The capital of France is Paris.
+  // It's the capital of...")
+  dispatch(p_penlt,   1, 1, 1, b_input, b_logit, b_indir);
 
   //--- argmax
   dispatch(p_amax0, 256, 1, 1, b_logit, b_amax0);
