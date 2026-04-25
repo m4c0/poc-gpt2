@@ -35,6 +35,37 @@ const char * text = "What's the capital of France?";
 // Note: KV-cache might improve the speed but it might also nuke the clarity
 // of the code
 
+//{{{ [mem] Memory allocation
+//============================
+// Alloc-and-forget routines. Mostly to keep track at the end of the process.
+
+typedef struct mem_ptr {
+  struct mem_ptr * next;
+  int sz;
+} mem_ptr_t;
+static mem_ptr_t * mem_list;
+static void * mem_alloc(unsigned sz) {
+  sz += sizeof(mem_ptr_t);
+  mem_ptr_t * p = calloc(sz, 1);
+  p->next = mem_list;
+  p->sz = sz;
+  mem_list = p;
+  return p + 1;
+}
+
+static void mem_deinit() {
+  int sz = 0;
+  while (mem_list) {
+    mem_ptr_t * n = mem_list->next;
+    sz += mem_list->sz;
+    free(mem_list);
+    mem_list = n;
+  }
+  fprintf(stderr, "Total allocated memory: %'d\n", sz);
+}
+
+//}}}
+
 //{{{ [utl] Utilities
 //====================
 
@@ -47,7 +78,7 @@ static utl_wstr_t utl_wstr_new(const wchar_t * str, int sz) {
 }
 
 static wchar_t * utl_wstr_printable(utl_wstr_t str) {
-  wchar_t * dup = malloc((str.sz + 1) * sizeof(wchar_t));
+  wchar_t * dup = mem_alloc((str.sz + 1) * sizeof(wchar_t));
   for (int i = 0; i < str.sz; i++) dup[i] = str.str[i] < 0x80 ? str.str[i] : '?';
   dup[str.sz] = 0;
   return dup;
@@ -62,7 +93,7 @@ static char * utl_slurp(const char * file) {
   assert(sz);
   assert(0 == fseek(f, 0, SEEK_SET));
 
-  char * data = malloc(sz + 1);
+  char * data = mem_alloc(sz + 1);
   assert(1 == fread(data, sz, 1, f));
   data[sz] = 0;
 
@@ -81,7 +112,7 @@ static wchar_t byt_map[256] = {0};
 static char byt_rev_map[65536] = {0};
 
 static wchar_t * byt_encode_bytes(const char * b, unsigned bytes) {
-  wchar_t * mb = malloc(sizeof(wchar_t) * bytes);
+  wchar_t * mb = mem_alloc(sizeof(wchar_t) * bytes);
   for (int i = 0; i < bytes; i++) mb[i] = byt_map[(unsigned)b[i]];
   return mb;
 }
@@ -132,7 +163,7 @@ static wchar_t * bpe_mbstowcs(const char * u8, wchar_t * mb) {
 static wchar_t * bpe_utf8_to_wchar(const char * a, const char * b) {
   // Final string will never be greater than original. Since it can be smaller,
   // we have to clear everything.
-  wchar_t * res = calloc(strlen(a) + strlen(b) + 1, sizeof(wchar_t));
+  wchar_t * res = mem_alloc((strlen(a) + strlen(b) + 1) * sizeof(wchar_t));
   // We concatenate both because the algo here only uses vocab.bpe for ranking.
   bpe_mbstowcs(b, bpe_mbstowcs(a, res));
   return res;
@@ -177,7 +208,7 @@ typedef struct bpe_list {
   int sz;
 } bpe_list_t;
 static bpe_list_t bpe_split(const wchar_t * txt, int len) {
-  utl_wstr_t * list = malloc(sizeof(utl_wstr_t) * len);
+  utl_wstr_t * list = mem_alloc(sizeof(utl_wstr_t) * len);
   int lsz = len;
   for (int i = 0; i < lsz; i++) list[i] = utl_wstr_new(txt + i, 1);
 
@@ -237,7 +268,7 @@ static void enc_init() {
     for (char * p = ptr; *p && *p != '"'; p++, ksz++) {
       if (*p == '\\') p++;
     }
-    wchar_t * key = calloc(ksz + 1, sizeof(wchar_t));
+    wchar_t * key = mem_alloc((ksz + 1) * sizeof(wchar_t));
 
     wchar_t * k = key;
     while (*ptr && *ptr != '"') {
@@ -279,8 +310,6 @@ static void enc_init() {
 
     enc_map[id] = utl_wstr_new(key, ksz);
   }
-
-  free(buf);
 
   assert(0 == wcscmp(enc_map[236].str, L"\x130"));
   assert(0 == wcscmp(enc_map[2068].str, L"\x120quick"));
@@ -341,7 +370,7 @@ typedef struct tkn_ids {
   int sz;
 } tkn_ids_t;
 static tkn_ids_t tkn_encode(const char * txt) {
-  int * ids = malloc(sizeof(int) * 1024);
+  int * ids = mem_alloc(sizeof(int) * 1024);
   int idx = 0;
 
   unsigned len;
@@ -553,7 +582,7 @@ static VkShaderModule vlk_create_shader_module(const char * name) {
   long sz = ftell(f);
   assert(sz && (sz % 4 == 0));
   assert(0 == fseek(f, 0, SEEK_SET));
-  uint32_t * data = malloc(sz);
+  uint32_t * data = mem_alloc(sz);
   assert(1 == fread(data, sz, 1, f));
   fclose(f);
 
@@ -566,7 +595,6 @@ static VkShaderModule vlk_create_shader_module(const char * name) {
   VkShaderModule mod;
   _(vkCreateShaderModule(vlk_dev, &info, NULL, &mod));
 
-  free(data);
   return mod;
 }
 
@@ -1140,12 +1168,13 @@ int main() {
   for (int i = 0; i < ts.sz; i++) ts.ids[i] = t[i];
   vkUnmapMemory(vlk_dev, mem);
 
-  char * buf = calloc(10240, 1);
+  char * buf = mem_alloc(10240);
   tkn_decode(ts, buf, 10240);
   printf("%s\n", buf);
   //}}}
 
   vlk_deinit();
+  mem_deinit();
 }
 
 // vim:fdm=marker
