@@ -61,7 +61,7 @@ static void mem_deinit() {
     free(mem_list);
     mem_list = n;
   }
-  fprintf(stderr, "Total allocated memory: %'d\n", sz);
+  fprintf(stderr, "Total allocated memory: %dMB\n", sz / (1024 * 1024));
 }
 
 //}}}
