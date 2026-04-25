@@ -1,5 +1,4 @@
 #define _CRT_SECURE_NO_WARNINGS
-#include <assert.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdarg.h>
@@ -83,6 +82,13 @@ static wchar_t * utl_wstr_printable(utl_wstr_t str) {
   dup[str.sz] = 0;
   return dup;
 }
+
+static void utl_assert(size_t n, const char * msg, const char * file, int line) {
+  if (n) return;
+  fprintf(stderr, "%s:%d: Assertion failed: %s\n", file, line, msg);
+  exit(1);
+}
+#define assert(X) utl_assert((size_t)(X), #X, __FILE__, __LINE__)
 
 static char * utl_slurp(const char * file) {
   FILE * f = fopen(file, "rb");
