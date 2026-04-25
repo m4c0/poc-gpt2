@@ -472,16 +472,6 @@ static sft_tensor_t sft_find(const char * key) {
   exit(1);
 }
 
-void sft_get_row(const char * tensor, int row, float * data, unsigned dsz) {
-  sft_tensor_t t = sft_find(tensor);
-  assert(row < t.shape[0]);
-  assert(dsz == t.shape[1]);
-
-  uint64_t rowsz = dsz * 4;
-  assert(0 == fseek(sft_file, t.begin + rowsz * row, SEEK_SET));
-  assert(fread(data, rowsz, 1, sft_file));
-}
-
 void sft_get(const char * tensor, float * data, unsigned s0, unsigned s1, unsigned s2, unsigned s3) {
   sft_tensor_t t = sft_find(tensor);
   assert(s0 == t.shape[0]);
