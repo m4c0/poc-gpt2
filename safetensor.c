@@ -94,10 +94,10 @@ void list(FILE * f) {
 
   char c;
   while ((c = fgetc(f)) != '}') {
-    assert(1 == fscanf(f,
-          "\"%[^\"]\":{\"dtype\":\"F32\",\"shape\":[%*[^]]],\"data_offsets\":[%*[^]]]}",
-          sft_key_buf));
-    puts(sft_key_buf);
+    assert(3 == fscanf(f,
+          "\"%[^\"]\":{\"dtype\":\"F32\",\"shape\":[%[^]]],\"data_offsets\":[%[^]]]}",
+          sft_key_buf, sft_shape_buf, sft_offsets_buf));
+    printf("%s %s %s\n", sft_key_buf, sft_shape_buf, sft_offsets_buf);
   }
 }
 
@@ -105,7 +105,7 @@ int main() {
   FILE * f = fopen("model.safetensors", "rb");
   assert(f);
 
-  //list(f);
+  list(f);
 
   float wpe[768];
   sft_get_row(f, "wpe.weight", 0, wpe, 768);
