@@ -15,7 +15,8 @@
 
 #define unreachable(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while (0)
 
-const char * text = "What's the capital of France?";
+#define PROMPT "What's the capital of France?"
+#define TOKEN_COUNT 128
 
 // TODO: add temperature
 // TODO: add penalty for repeating tokens
@@ -1016,7 +1017,7 @@ int main() {
 
   //{{{ load input buffer
 
-  tkn_ids_t ts = tkn_encode(text);
+  tkn_ids_t ts = tkn_encode(PROMPT);
 
   vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
 
@@ -1161,7 +1162,7 @@ int main() {
 
   //{{{ generate N tokens
   int count = 0;
-  for (; count < 512; count++) vlk_submit(cb);
+  for (; count < TOKEN_COUNT; count++) vlk_submit(cb);
   vkDeviceWaitIdle(vlk_dev);
   //}}}
 
