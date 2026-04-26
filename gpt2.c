@@ -15,9 +15,6 @@
 
 #define unreachable(...) do { fprintf(stderr, __VA_ARGS__); exit(1); } while (0)
 
-#define PROMPT "What's the capital of France?"
-#define TOKEN_COUNT 128
-
 // TODO: add temperature
 // TODO: add penalty for repeating tokens
 // TODO: add KV-cache
@@ -926,7 +923,12 @@ static void bind(VkCommandBuffer cb, vlk_ppl_t ppl, ...) {
 
 //}}}
 
-int main() {
+int main(int argc, char ** argv) {
+  if (argc != 3) {
+    fprintf(stderr, "usage: %s <token-count> '<message>'\n", argv[0]);
+    return 1;
+  }
+
   byt_init();
   bpe_init();
   enc_init();
@@ -1017,7 +1019,7 @@ int main() {
 
   //{{{ load input buffer
 
-  tkn_ids_t ts = tkn_encode(PROMPT);
+  tkn_ids_t ts = tkn_encode(argv[2]);
 
   vlk_buffer_t b_indir = create_indirect_buffer(ts.sz);
 
@@ -1160,9 +1162,10 @@ int main() {
 
   //}}}
 
+  int count = atoi(argv[1]);
+
   //{{{ generate N tokens
-  int count = 0;
-  for (; count < TOKEN_COUNT; count++) vlk_submit(cb);
+  for (int i = 0; i < count; i++) vlk_submit(cb);
   vkDeviceWaitIdle(vlk_dev);
   //}}}
 
